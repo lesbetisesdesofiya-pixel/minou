@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>UMLCraft - Modélisation UML & Génération SQL</title>
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#1e1e2e">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg-dark: #1e1e2e;
+      --bg-mid: #252536;
+      --bg-light: #2d2d44;
+      --bg-lighter: #363654;
+      --accent: #7c5cfc;
+      --accent-hover: #6a48e0;
+      --accent-light: rgba(124, 92, 252, 0.15);
+      --text: #e0e0f0;
+      --text-muted: #8888aa;
+      --border: #3a3a55;
+      --success: #4ade80;
+      --warning: #fbbf24;
+      --danger: #f87171;
+      --info: #60a5fa;
+      --radius: 8px;
+      --shadow: 0 4px 24px rgba(0,0,0,0.3);
+    }
+
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background: var(--bg-dark);
+      color: var(--text);
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* ─── SPLASH SCREEN ─── */
+    #splash {
+      position: fixed; inset: 0; z-index: 9999;
+      background: var(--bg-dark);
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      transition: opacity 0.5s;
+    }
+    #splash.hidden { opacity: 0; pointer-events: none; }
+    #splash .logo { font-size: 3rem; font-weight: 800; color: var(--accent); margin-bottom: 0.5rem; }
+    #splash .subtitle { color: var(--text-muted); font-size: 1rem; margin-bottom: 2rem; }
+    .loader { width: 40px; height: 40px; border: 3px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ─── LAYOUT ─── */
+    .app { display: flex; height: 100vh; }
+
+    /* ─── SIDEBAR ─── */
+    .sidebar {
+      width: 280px; min-width: 280px;
+      background: var(--bg-mid);
+      border-right: 1px solid var(--border);
+      display: flex; flex-direction: column;
+      transition: transform 0.3s;
+    }
+    .sidebar-header {
+      padding: 20px;
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; gap: 10px;
+    }
+    .sidebar-header .brand {
+      font-size: 1.3rem; font-weight: 800; color: var(--accent);
+      letter-spacing: -0.5px;
+    }
+    .sidebar-content {
+      flex: 1; overflow-y: auto; padding: 12px;
+    }
+    .sidebar-content::-webkit-scrollbar { width: 4px; }
+    .sidebar-content::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+    .section-title {
+      font-size: 0.7rem; text-transform: uppercase; letter-spacing: 1.5px;
+      color: var(--text-muted); padding: 12px 8px 6px; font-weight: 600;
+    }
+
+    .project-item {
+      display: flex; align-items: center; gap: 10px;
+      padding: 10px 12px; border-radius: var(--radius);
+      cursor: pointer; transition: background 0.15s;
+      margin-bottom: 2px;
+    }
+    .project-item:hover { background: var(--bg-light); }
+    .project-item.active { background: var(--accent-light); border: 1px solid var(--accent); }
+    .project-item .icon { font-size: 1.2rem; }
+    .project-item .info { flex: 1; min-width: 0; }
+    .project-item .name { font-size: 0.9rem; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .project-item .desc { font-size: 0.7rem; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .project-item .actions {
+      display: none; gap: 4px;
+    }
+    .project-item:hover .actions { display: flex; }
+    .project-item .actions button {
+      background: none; border: none; color: var(--text-muted);
+      cursor: pointer; padding: 2px; font-size: 0.8rem; border-radius: 4px;
+    }
+    .project-item .actions button:hover { color: var(--text); background: var(--bg-lighter); }
+
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+      padding: 8px 16px; border-radius: var(--radius);
+      font-size: 0.85rem; font-weight: 500; cursor: pointer;
+      border: none; transition: all 0.15s; width: 100%;
+    }
+    .btn-primary { background: var(--accent); color: white; }
+    .btn-primary:hover { background: var(--accent-hover); }
+    .btn-ghost { background: transparent; color: var(--text-muted); border: 1px solid var(--border); }
+    .btn-ghost:hover { background: var(--bg-light); color: var(--text); }
+    .btn-danger { background: var(--danger); color: white; }
+    .btn-danger:hover { background: #dc2626; }
+    .btn-success { background: var(--success); color: #1a1a2e; }
+    .btn-success:hover { background: #22c55e; }
+    .btn-sm { padding: 5px 10px; font-size: 0.75rem; width: auto; }
+
+    .sidebar-footer {
+      padding: 12px; border-top: 1px solid var(--border);
+    }
+
+    /* ─── MAIN AREA ─── */
+    .main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+
+    /* ─── TOP BAR ─── */
+    .topbar {
+      height: 50px; display: flex; align-items: center;
+      padding: 0 16px; gap: 8px;
+      background: var(--bg-mid); border-bottom: 1px solid var(--border);
+    }
+    .topbar .menu-toggle {
+      display: none; background: none; border: none; color: var(--text);
+      font-size: 1.2rem; cursor: pointer; padding: 4px 8px;
+    }
+    .diagram-tabs {
+      display: flex; gap: 2px; flex: 1; overflow-x: auto;
+    }
+    .diagram-tabs::-webkit-scrollbar { height: 0; }
+    .diagram-tab {
+      display: flex; align-items: center; gap: 6px;
+      padding: 8px 16px; font-size: 0.85rem;
+      background: transparent; border: none; color: var(--text-muted);
+      cursor: pointer; border-bottom: 2px solid transparent;
+      white-space: nowrap; transition: all 0.15s;
+    }
+    .diagram-tab:hover { color: var(--text); background: var(--bg-light); }
+    .diagram-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+    .diagram-tab .close {
+      font-size: 0.7rem; opacity: 0; transition: opacity 0.15s;
+      padding: 2px; border-radius: 3px;
+    }
+    .diagram-tab:hover .close { opacity: 0.6; }
+    .diagram-tab .close:hover { opacity: 1; background: var(--danger); color: white; }
+
+    .topbar-actions { display: flex; gap: 4px; }
+    .topbar-btn {
+      background: none; border: 1px solid var(--border);
+      color: var(--text-muted); padding: 6px 10px; border-radius: var(--radius);
+      cursor: pointer; font-size: 0.8rem; transition: all 0.15s;
+    }
+    .topbar-btn:hover { background: var(--bg-light); color: var(--text); border-color: var(--accent); }
+
+    /* ─── WORKSPACE ─── */
+    .workspace {
+      flex: 1; display: flex; position: relative; overflow: hidden;
+    }
+
+    /* ─── TOOLBOX (left) ─── */
+    .toolbox {
+      width: 56px; min-width: 56px;
+      background: var(--bg-mid);
+      border-right: 1px solid var(--border);
+      display: flex; flex-direction: column;
+      align-items: center; padding: 8px 0;
+      gap: 4px; overflow-y: auto;
+    }
+    .toolbox::-webkit-scrollbar { width: 0; }
+    .tool-btn {
+      width: 40px; height: 40px;
+      display: flex; align-items: center; justify-content: center;
+      background: none; border: none; color: var(--text-muted);
+      cursor: pointer; border-radius: var(--radius);
+      font-size: 1.1rem; transition: all 0.15s;
+      position: relative;
+    }
+    .tool-btn:hover { background: var(--bg-light); color: var(--text); }
+    .tool-btn.active { background: var(--accent-light); color: var(--accent); }
+    .tool-btn::after {
+      content: attr(data-tooltip);
+      position: absolute; left: 52px; top: 50%; transform: translateY(-50%);
+      background: var(--bg-lighter); color: var(--text);
+      padding: 4px 8px; border-radius: 4px; font-size: 0.7rem;
+      white-space: nowrap; pointer-events: none;
+      opacity: 0; transition: opacity 0.15s;
+      z-index: 100;
+    }
+    .tool-btn:hover::after { opacity: 1; }
+    .tool-separator { width: 28px; height: 1px; background: var(--border); margin: 4px 0; }
+
+    /* ─── CANVAS AREA ─── */
+    .canvas-container {
+      flex: 1; position: relative; overflow: hidden;
+      background: #1a1a2a;
+    }
+    .canvas-container canvas {
+      position: absolute; top: 0; left: 0;
+    }
+    .canvas-grid {
+      position: absolute; inset: 0;
+      background-image:
+        radial-gradient(circle, var(--border) 1px, transparent 1px);
+      background-size: 20px 20px;
+      opacity: 0.3;
+    }
+
+    /* ─── PROPERTIES PANEL (right) ─── */
+    .properties-panel {
+      width: 300px; min-width: 300px;
+      background: var(--bg-mid);
+      border-left: 1px solid var(--border);
+      display: flex; flex-direction: column;
+      transition: width 0.3s, min-width 0.3s;
+    }
+    .properties-panel.collapsed { width: 0; min-width: 0; overflow: hidden; }
+    .panel-header {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.85rem; font-weight: 600;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .panel-content {
+      flex: 1; overflow-y: auto; padding: 12px;
+    }
+    .panel-content::-webkit-scrollbar { width: 4px; }
+    .panel-content::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+    .prop-group { margin-bottom: 16px; }
+    .prop-group-title {
+      font-size: 0.7rem; text-transform: uppercase; letter-spacing: 1px;
+      color: var(--text-muted); margin-bottom: 8px; font-weight: 600;
+    }
+    .prop-field { margin-bottom: 8px; }
+    .prop-field label {
+      display: block; font-size: 0.75rem; color: var(--text-muted);
+      margin-bottom: 4px;
+    }
+    .prop-field input, .prop-field select, .prop-field textarea {
+      width: 100%; padding: 7px 10px;
+      background: var(--bg-dark); border: 1px solid var(--border);
+      color: var(--text); border-radius: 6px; font-size: 0.85rem;
+      outline: none; transition: border-color 0.15s;
+    }
+    .prop-field input:focus, .prop-field select:focus, .prop-field textarea:focus {
+      border-color: var(--accent);
+    }
+    .prop-field textarea { resize: vertical; min-height: 60px; font-family: inherit; }
+
+    .attr-list, .method-list { list-style: none; }
+    .attr-item, .method-item {
+      display: flex; align-items: center; gap: 4px;
+      padding: 4px 6px; margin-bottom: 2px;
+      background: var(--bg-dark); border-radius: 4px;
+      font-size: 0.8rem;
+    }
+    .attr-item input, .method-item input {
+      flex: 1; background: transparent; border: none;
+      color: var(--text); font-size: 0.8rem; outline: none;
+      padding: 2px 4px;
+    }
+    .attr-item select, .method-item select {
+      background: var(--bg-light); border: 1px solid var(--border);
+      color: var(--text); border-radius: 3px; font-size: 0.75rem;
+      padding: 1px 4px; outline: none;
+    }
+    .attr-item .remove, .method-item .remove {
+      background: none; border: none; color: var(--text-muted);
+      cursor: pointer; font-size: 0.7rem; padding: 2px;
+    }
+    .attr-item .remove:hover, .method-item .remove:hover { color: var(--danger); }
+
+    .add-btn {
+      display: flex; align-items: center; gap: 4px;
+      background: var(--bg-dark); border: 1px dashed var(--border);
+      color: var(--text-muted); padding: 6px 10px; border-radius: 4px;
+      cursor: pointer; font-size: 0.75rem; width: 100%;
+      transition: all 0.15s;
+    }
+    .add-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+    /* ─── MODALS ─── */
+    .modal-overlay {
+      position: fixed; inset: 0; z-index: 1000;
+      background: rgba(0,0,0,0.6); backdrop-filter: blur(4px);
+      display: flex; align-items: center; justify-content: center;
+      opacity: 0; pointer-events: none; transition: opacity 0.2s;
+    }
+    .modal-overlay.show { opacity: 1; pointer-events: all; }
+    .modal {
+      background: var(--bg-mid); border: 1px solid var(--border);
+      border-radius: 12px; padding: 24px; min-width: 400px; max-width: 90vw;
+      box-shadow: var(--shadow); transform: scale(0.95);
+      transition: transform 0.2s;
+    }
+    .modal-overlay.show .modal { transform: scale(1); }
+    .modal h2 { font-size: 1.2rem; margin-bottom: 16px; }
+    .modal .form-group { margin-bottom: 14px; }
+    .modal .form-group label { display: block; font-size: 0.8rem; color: var(--text-muted); margin-bottom: 6px; }
+    .modal .form-group input, .modal .form-group textarea {
+      width: 100%; padding: 10px 14px;
+      background: var(--bg-dark); border: 1px solid var(--border);
+      color: var(--text); border-radius: var(--radius); font-size: 0.9rem;
+      outline: none;
+    }
+    .modal .form-group input:focus, .modal .form-group textarea:focus {
+      border-color: var(--accent);
+    }
+    .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 20px; }
+
+    /* ─── SQL MODAL ─── */
+    .sql-modal .modal { min-width: 700px; }
+    .sql-editor {
+      width: 100%; min-height: 300px; max-height: 60vh;
+      background: var(--bg-dark); border: 1px solid var(--border);
+      color: var(--success); font-family: 'Fira Code', 'Cascadia Code', monospace;
+      font-size: 0.85rem; padding: 16px; border-radius: var(--radius);
+      resize: vertical; outline: none; line-height: 1.6;
+    }
+    .sql-tabs { display: flex; gap: 4px; margin-bottom: 12px; }
+    .sql-tab {
+      padding: 6px 14px; border-radius: 6px;
+      background: var(--bg-dark); border: 1px solid var(--border);
+      color: var(--text-muted); cursor: pointer; font-size: 0.8rem;
+    }
+    .sql-tab.active { background: var(--accent); color: white; border-color: var(--accent); }
+
+    /* ─── WELCOME SCREEN ─── */
+    .welcome {
+      flex: 1; display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      text-align: center; color: var(--text-muted);
+    }
+    .welcome .big-icon { font-size: 4rem; margin-bottom: 16px; opacity: 0.3; }
+    .welcome h2 { font-size: 1.5rem; color: var(--text); margin-bottom: 8px; }
+    .welcome p { font-size: 0.9rem; max-width: 400px; line-height: 1.6; }
+
+    /* ─── NOTIFICATIONS ─── */
+    .notifications {
+      position: fixed; bottom: 20px; right: 20px; z-index: 2000;
+      display: flex; flex-direction: column; gap: 8px;
+    }
+    .notification {
+      padding: 12px 20px; border-radius: var(--radius);
+      font-size: 0.85rem; box-shadow: var(--shadow);
+      animation: slideIn 0.3s ease; min-width: 200px;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .notification.success { background: #166534; color: #bbf7d0; }
+    .notification.error { background: #991b1b; color: #fecaca; }
+    .notification.info { background: #1e3a5f; color: #bfdbfe; }
+    @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } }
+
+    /* ─── ZOOM CONTROLS ─── */
+    .zoom-controls {
+      position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%);
+      display: flex; align-items: center; gap: 4px;
+      background: var(--bg-mid); border: 1px solid var(--border);
+      border-radius: 8px; padding: 4px 8px;
+    }
+    .zoom-controls button {
+      background: none; border: none; color: var(--text-muted);
+      cursor: pointer; padding: 4px 8px; border-radius: 4px;
+      font-size: 0.9rem;
+    }
+    .zoom-controls button:hover { background: var(--bg-light); color: var(--text); }
+    .zoom-controls .zoom-level {
+      font-size: 0.75rem; color: var(--text-muted);
+      min-width: 40px; text-align: center;
+    }
+
+    /* ─── CONTEXT MENU ─── */
+    .context-menu {
+      position: fixed; z-index: 5000;
+      background: var(--bg-mid); border: 1px solid var(--border);
+      border-radius: var(--radius); box-shadow: var(--shadow);
+      min-width: 180px; padding: 4px; display: none;
+    }
+    .context-menu.show { display: block; }
+    .context-item {
+      padding: 8px 12px; font-size: 0.8rem; cursor: pointer;
+      border-radius: 4px; display: flex; align-items: center; gap: 8px;
+    }
+    .context-item:hover { background: var(--bg-light); }
+    .context-item.danger { color: var(--danger); }
+    .context-separator { height: 1px; background: var(--border); margin: 4px 0; }
+
+    /* ─── EMPTY STATE ─── */
+    .empty-state {
+      display: flex; flex-direction: column; align-items: center;
+      justify-content: center; height: 100%; color: var(--text-muted);
+      text-align: center; padding: 40px;
+    }
+    .empty-state .icon { font-size: 3rem; margin-bottom: 12px; opacity: 0.3; }
+    .empty-state h3 { font-size: 1.1rem; color: var(--text); margin-bottom: 8px; }
+
+    /* ─── SCROLLBAR ─── */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+    @media (max-width: 768px) {
+      .sidebar { position: fixed; left: 0; top: 0; bottom: 0; z-index: 100; transform: translateX(-100%); }
+      .sidebar.open { transform: translateX(0); }
+      .topbar .menu-toggle { display: block; }
+      .properties-panel { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- SPLASH -->
+  <div id="splash">
+    <div class="logo">UMLCraft</div>
+    <div class="subtitle">Modélisation UML & Génération SQL</div>
+    <div class="loader"></div>
+  </div>
+
+  <!-- APP -->
+  <div class="app" id="app" style="display:none">
+
+    <!-- SIDEBAR -->
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <span style="font-size:1.4rem">📐</span>
+        <span class="brand">UMLCraft</span>
+      </div>
+      <div class="sidebar-content">
+        <div class="section-title">Projets</div>
+        <div id="projectList"></div>
+        <button class="btn btn-primary" style="margin-top:12px" onclick="showNewProjectModal()">
+          + Nouveau Projet
+        </button>
+      </div>
+      <div class="sidebar-footer">
+        <button class="btn btn-ghost btn-sm" onclick="exportAllProjects()" style="margin-bottom:6px">📦 Exporter tout</button>
+        <button class="btn btn-ghost btn-sm" onclick="importProject()">📥 Importer</button>
+      </div>
+    </aside>
+
+    <!-- MAIN -->
+    <div class="main">
+      <!-- TOPBAR -->
+      <div class="topbar">
+        <button class="menu-toggle" onclick="toggleSidebar()">☰</button>
+        <div class="diagram-tabs" id="diagramTabs"></div>
+        <div class="topbar-actions">
+          <button class="topbar-btn" onclick="generateSQL()" title="Générer SQL">🗄️ SQL</button>
+          <button class="topbar-btn" onclick="exportDiagram('png')" title="Export PNG">📷 PNG</button>
+          <button class="topbar-btn" onclick="exportDiagram('svg')" title="Export SVG">🖼️ SVG</button>
+          <button class="topbar-btn" onclick="toggleProperties()" title="Panneau propriétés">⚙️</button>
+        </div>
+      </div>
+
+      <!-- WORKSPACE -->
+      <div class="workspace" id="workspace">
+        <!-- TOOLBOX -->
+        <div class="toolbox" id="toolbox" style="display:none"></div>
+
+        <!-- CANVAS -->
+        <div class="canvas-container" id="canvasContainer">
+          <div class="welcome" id="welcomeScreen">
+            <div class="big-icon">📐</div>
+            <h2>Bienvenue sur UMLCraft</h2>
+            <p>Créez un projet dans la barre latérale ou sélectionnez un projet existant pour commencer à modéliser.</p>
+          </div>
+          <canvas id="diagramCanvas" style="display:none"></canvas>
+          <div class="zoom-controls" id="zoomControls" style="display:none">
+            <button onclick="editor.zoomIn()">+</button>
+            <span class="zoom-level" id="zoomLevel">100%</span>
+            <button onclick="editor.zoomOut()">−</button>
+            <button onclick="editor.zoomReset()">⊙</button>
+          </div>
+        </div>
+
+        <!-- PROPERTIES PANEL -->
+        <div class="properties-panel" id="propertiesPanel" style="display:none">
+          <div class="panel-header">
+            <span id="panelTitle">Propriétés</span>
+            <button class="topbar-btn btn-sm" onclick="toggleProperties()">✕</button>
+          </div>
+          <div class="panel-content" id="propertiesContent">
+            <div class="empty-state">
+              <div class="icon">🔍</div>
+              <h3>Aucune sélection</h3>
+              <p>Sélectionnez un élément pour voir ses propriétés</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- NEW PROJECT MODAL -->
+  <div class="modal-overlay" id="newProjectModal">
+    <div class="modal">
+      <h2>Nouveau Projet</h2>
+      <div class="form-group">
+        <label>Nom du projet</label>
+        <input type="text" id="projectName" placeholder="Mon projet UML" autofocus>
+      </div>
+      <div class="form-group">
+        <label>Description</label>
+        <textarea id="projectDesc" placeholder="Description du projet..."></textarea>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" onclick="closeModal('newProjectModal')">Annuler</button>
+        <button class="btn btn-primary" onclick="createProject()">Créer</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- NEW DIAGRAM MODAL -->
+  <div class="modal-overlay" id="newDiagramModal">
+    <div class="modal">
+      <h2>Nouveau Diagramme</h2>
+      <div class="form-group">
+        <label>Nom</label>
+        <input type="text" id="diagramName" placeholder="Mon diagramme">
+      </div>
+      <div class="form-group">
+        <label>Type</label>
+        <select id="diagramType" style="width:100%; padding:10px 14px; background:var(--bg-dark); border:1px solid var(--border); color:var(--text); border-radius:var(--radius); font-size:0.9rem; outline:none;">
+          <option value="usecase">Diagramme de cas d'utilisation</option>
+          <option value="class">Diagramme de classes</option>
+          <option value="activity">Diagramme d'activité</option>
+        </select>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" onclick="closeModal('newDiagramModal')">Annuler</button>
+        <button class="btn btn-primary" onclick="createDiagram()">Créer</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- SQL MODAL -->
+  <div class="modal-overlay sql-modal" id="sqlModal">
+    <div class="modal">
+      <h2>🗄️ Code SQL Généré</h2>
+      <div class="sql-tabs" id="sqlTabs"></div>
+      <textarea class="sql-editor" id="sqlEditor" readonly></textarea>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" onclick="closeModal('sqlModal')">Fermer</button>
+        <button class="btn btn-success" onclick="copySQL()">📋 Copier</button>
+        <button class="btn btn-primary" onclick="downloadSQL()">💾 Télécharger .sql</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- CONTEXT MENU -->
+  <div class="context-menu" id="contextMenu">
+    <div class="context-item" onclick="editor.duplicateSelected()">📋 Dupliquer</div>
+    <div class="context-separator"></div>
+    <div class="context-item danger" onclick="editor.deleteSelected()">🗑️ Supprimer</div>
+  </div>
+
+  <!-- NOTIFICATIONS -->
+  <div class="notifications" id="notifications"></div>
+
+  <!-- HIDDEN IMPORT -->
+  <input type="file" id="importInput" accept=".json" style="display:none" onchange="handleImport(event)">
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/sql-wasm.js"></script>
+  <script src="database.js"></script>
+  <script src="diagram-editor.js"></script>
+  <script src="sql-generator.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

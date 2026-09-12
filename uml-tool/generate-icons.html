@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html>
+<head><title>Generate Icons</title></head>
+<body>
+<canvas id="c"></canvas>
+<script>
+async function generateIcons() {
+  for (const size of [192, 512]) {
+    const canvas = document.getElementById('c');
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext('2d');
+
+    const r = size * 0.48;
+    const cx = size / 2;
+    const cy = size / 2;
+
+    ctx.fillStyle = '#1e1e2e';
+    ctx.fillRect(0, 0, size, size);
+
+    const gradient = ctx.createLinearGradient(cx - r, cy - r, cx + r, cy + r);
+    gradient.addColorStop(0, '#7c5cfc');
+    gradient.addColorStop(1, '#4ade80');
+    ctx.fillStyle = gradient;
+    ctx.beginPath();
+    ctx.roundRect(cx - r, cy - r, r * 2, r * 2, r * 0.25);
+    ctx.fill();
+
+    ctx.fillStyle = '#ffffff';
+    ctx.font = `bold ${size * 0.3}px Arial`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('UML', cx, cy - size * 0.05);
+
+    ctx.font = `bold ${size * 0.15}px Arial`;
+    ctx.fillStyle = 'rgba(255,255,255,0.8)';
+    ctx.fillText('Craft', cx, cy + size * 0.15);
+
+    const link = document.createElement('a');
+    link.download = `icon-${size}.png`;
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+  }
+}
+generateIcons();
+</script>
+</body>
+</html>
