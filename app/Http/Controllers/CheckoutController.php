@@ -6,17 +6,30 @@ use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Dish;
 use App\Models\DishVariation;
-use App\Services\FcmService;
+use App\Services\MoneyFusionService;
+use App\Services\OrderService;
+use App\Services\PricingService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
 class CheckoutController extends Controller
 {
     public function index()
     {
-        return view('checkout');
+        return view('checkout', [
+            'deliveryZones'      => $this->deliveryZonesMap(),
+            'deliveryDefaultFee' => config('delivery.default', 1000),
+        ]);
+    }
+
+    /**
+     * Quartiers à tarif spécial (délégué au PricingService, source unique).
+     * @return array quartier => tarif
+     */
+    private function deliveryZonesMap(): array
+    {
+        return (new PricingService())->zonesMap();
     }
 
     public function store(Request $request)
@@ -27,73 +40,22 @@ class CheckoutController extends Controller
             return response()->json(['success' => false, 'message' => 'Données invalides'], 400);
         }
 
-        DB::beginTransaction();
         try {
-            $order = Order::create([
-                'service_type'          => $data['serviceType']  ?? 'emporter',
-                'client_name'           => $data['name']          ?? null,
-                'client_phone'          => $data['phone']         ?? null,
-                'neighborhood'          => $data['neighborhood']  ?? null,
-                'table_number'          => $data['table']         ?? null,
-                'notes'                 => $data['notes']         ?? null,
-                'total_amount'          => $data['total']         ?? 0,
-                'status'                => 'En attente de paiement',
-                'payment_method'        => $data['paymentMethod'] ?? null,
-                'transaction_reference' => $data['transactionReference'] ?? null,
-            ]);
-
-            foreach ($data['items'] ?? [] as $item) {
-                $options     = $item['selectedOptions'] ?? [];
-                $optionsText = implode(', ', array_map(fn($o) => is_array($o) ? $o['name'] : $o, $options));
-
-                OrderItem::create([
-                    'order_id'     => $order->id,
-                    'product_name' => $item['name']      ?? 'Article',
-                    'quantity'     => $item['quantity']  ?? 1,
-                    'price'        => $item['itemPrice'] ?? 0,
-                    'options_text' => $optionsText,
-                ]);
-
-                $dishId = $item['id'] ?? null;
-                if ($dishId) {
-                    $qty = $item['quantity'] ?? 1;
-                    Dish::where('id', $dishId)->increment('orders_count', $qty);
-
-                    // Decrement fish stock
-                    foreach ($options as $opt) {
-                        $optName = is_array($opt) ? ($opt['name'] ?? '') : $opt;
-                        if (!$optName) continue;
-
-                        $variation = DishVariation::whereHas('dish.category', fn($q) => $q->where('nom', 'Poissons'))
-                            ->where('dish_id', $dishId)
-                            ->where('name', $optName)
-                            ->first();
-
-                        if ($variation) {
-                            $variation->decrement('stock_kg', $qty);
-                        }
-                    }
-                }
-            }
-
-            DB::commit();
-
-            // Send FCM notification for pending payment order
-            $fcmResult = [];
-            try {
-                $fcmService = new FcmService();
-                $fcmResult  = $fcmService->sendOrderNotification($order->id, $data);
-            } catch (\Exception $e) {
-                error_log("FCM Error: " . $e->getMessage());
-            }
+            $result = (new OrderService())->create($data);
+            $order  = $result['order'];
 
             return response()->json([
                 'success'    => true,
                 'order_id'   => $order->id,
-                '_fcm_debug' => $fcmResult,
+                'subtotal'   => $result['subtotal'],
+                'service_fee'=> $result['service_fee'],
+                'delivery_fee' => $result['delivery_fee'],
+                'total'      => $result['total'],
+                '_fcm_debug' => $result['fcm'],
             ]);
+        } catch (\InvalidArgumentException $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 400);
         } catch (\Throwable $e) {
-            DB::rollBack();
             return response()->json(['success' => false, 'message' => 'Erreur serveur: ' . $e->getMessage()], 500);
         }
     }
@@ -150,148 +112,214 @@ class CheckoutController extends Controller
     }
 
     /**
-     * Valider automatiquement le paiement avec Gemini Vision API
+     * Frais de livraison automatiques (délégué au PricingService, source unique).
      */
-    public function validatePayment(Request $request, $id)
+    private function resolveDeliveryFee(?string $serviceType, ?string $neighborhood): int
+    {
+        return (new PricingService())->resolveDeliveryFee($serviceType, $neighborhood);
+    }
+
+    /**
+     * Initier un paiement MoneyFusion pour une commande existante.
+     * POST /orders/{id}/moneyfusion/initiate { numeroSend, nomclient }
+     */
+    public function initiateMoneyFusion(Request $request, $id)
+    {
+        $order = Order::with('items')->find($id);
+        if (!$order) {
+            return response()->json(['success' => false, 'message' => 'Commande introuvable'], 404);
+        }
+
+        if ($order->status === 'Payée') {
+            return response()->json(['success' => true, 'message' => 'Commande déjà payée', 'already_paid' => true]);
+        }
+
+        $numeroSend = preg_replace('/\s+/', '', trim($request->input('numeroSend', $order->client_phone ?? '')));
+        $nomclient  = trim($request->input('nomclient', $order->client_name ?? ''));
+
+        if (!$numeroSend || !$nomclient) {
+            return response()->json(['success' => false, 'message' => 'Numéro et nom du client requis'], 400);
+        }
+
+        // Articles au format MoneyFusion : [{ nom_article: prix }]
+        // + ligne frais de service (10%) pour transparence
+        $articles = [];
+        foreach ($order->items as $item) {
+            $articles[] = [$item->product_name => (float) $item->price * (int) $item->quantity];
+        }
+        if ((float) ($order->service_fee ?? 0) > 0) {
+            $articles[] = ['Frais de service (10%)' => (float) $order->service_fee];
+        }
+        if ((float) ($order->delivery_fee ?? 0) > 0) {
+            $articles[] = ['Frais de livraison' => (float) $order->delivery_fee];
+        }
+        if (empty($articles)) {
+            $articles[] = ['Commande #' . $order->id => (float) $order->total_amount];
+        }
+
+        $paymentData = [
+            'totalPrice'    => (int) round((float) $order->total_amount),
+            'article'       => $articles,
+            'personal_Info' => [['orderId' => $order->id]],
+            'numeroSend'    => $numeroSend,
+            'nomclient'     => $nomclient,
+            'return_url'    => route('payment.callback') . '?order_id=' . $order->id,
+            'webhook_url'   => route('payment.webhook'),
+        ];
+
+        try {
+            $service = new MoneyFusionService();
+            $result  = $service->initiate($paymentData);
+
+            if (empty($result['statut']) || empty($result['token']) || empty($result['url'])) {
+                return response()->json(['success' => false, 'message' => $result['message'] ?? 'Réponse MoneyFusion invalide'], 502);
+            }
+
+            $order->update([
+                'payment_method'     => 'moneyfusion',
+                'payment_token'      => $result['token'],
+                'payment_url'        => $result['url'],
+                'moneyfusion_status' => 'pending',
+                'client_phone'       => $order->client_phone ?: $numeroSend,
+                'client_name'        => $order->client_name ?: $nomclient,
+            ]);
+
+            return response()->json([
+                'success'     => true,
+                'payment_url' => $result['url'],
+                'token'       => $result['token'],
+                'message'     => $result['message'] ?? 'Paiement en cours',
+            ]);
+        } catch (\Throwable $e) {
+            Log::error("MoneyFusion initiate error: " . $e->getMessage());
+            return response()->json(['success' => false, 'message' => 'Erreur MoneyFusion: ' . $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Vérifier le statut d'un paiement (polling frontend).
+     * GET /orders/{id}/moneyfusion/status
+     */
+    public function moneyFusionStatus(Request $request, $id)
     {
         $order = Order::find($id);
         if (!$order) {
             return response()->json(['success' => false, 'message' => 'Commande introuvable'], 404);
         }
 
-        if (!$request->hasFile('screenshot')) {
-            return response()->json(['success' => false, 'message' => 'La capture d\'écran du reçu est requise.'], 400);
+        if ($order->status === 'Payée') {
+            return response()->json(['success' => true, 'paid' => true, 'status' => 'paid', 'order' => $order]);
         }
 
-        // Sauvegarder l'image
-        $path = $request->file('screenshot')->store('screenshots', 'public');
-        $imagePath = storage_path('app/public/' . $path);
-        $imageData = base64_encode(file_get_contents($imagePath));
-        $mimeType = $request->file('screenshot')->getMimeType();
-
-        $apiKey = env('GEMINI_API_KEY');
-
-        // Mode Démo / Simulation si clé manquante ou fictive
-        if (!$apiKey || $apiKey === 'AIzaSyFakeKeyForNowPleaseChangeMe' || strpos($apiKey, 'FakeKey') !== false) {
-            $refRead = 'SIM-' . strtoupper(uniqid());
-            $order->update([
-                'status' => 'Payée',
-                'transaction_reference' => $refRead,
-                'screenshot_path' => $path
-            ]);
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Paiement validé avec succès (Mode Démo / Clé API Gemini simulée).',
-                'order' => $order,
-                '_demo' => true
-            ]);
+        if (!$order->payment_token) {
+            return response()->json(['success' => false, 'message' => 'Aucun paiement initié pour cette commande'], 400);
         }
 
         try {
-            $endpoint = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" . $apiKey;
+            $service = new MoneyFusionService();
+            $result  = $service->checkStatus($order->payment_token);
+            $data    = $result['data'] ?? [];
+            $statut  = strtolower($data['statut'] ?? '');
 
-            $prompt = "Analyze this payment receipt screenshot. Return a JSON object with the following fields: "
-                    . "'montant_paye' (number, the paid amount in CFA/F), "
-                    . "'nom_ou_code_marchand' (string, the merchant name or code), "
-                    . "'reference_transaction' (string, the unique transaction reference/ID), "
-                    . "and 'date_paiement' (string, format YYYY-MM-DD).";
+            if ($statut === 'paid') {
+                $order->update([
+                    'status'                => 'Payée',
+                    'moneyfusion_status'    => 'paid',
+                    'transaction_reference' => $data['numeroTransaction'] ?? $order->payment_token,
+                ]);
 
-            $payload = [
-                'contents' => [
-                    [
-                        'parts' => [
-                            ['text' => $prompt],
-                            [
-                                'inlineData' => [
-                                    'mimeType' => $mimeType,
-                                    'data' => $imageData
-                                ]
-                            ]
-                        ]
-                    ]
-                ],
-                'generationConfig' => [
-                    'responseMimeType' => 'application/json',
-                    'responseSchema' => [
-                        'type' => 'OBJECT',
-                        'properties' => [
-                            'montant_paye' => ['type' => 'NUMBER'],
-                            'nom_ou_code_marchand' => ['type' => 'STRING'],
-                            'reference_transaction' => ['type' => 'STRING'],
-                            'date_paiement' => ['type' => 'STRING']
-                        ],
-                        'required' => ['montant_paye', 'nom_ou_code_marchand', 'reference_transaction', 'date_paiement']
-                    ]
-                ]
-            ];
-
-            $response = Http::withHeaders(['Content-Type' => 'application/json'])
-                            ->timeout(30)
-                            ->post($endpoint, $payload);
-
-            if (!$response->successful()) {
-                throw new \Exception("Erreur de communication avec l'API Gemini: HTTP " . $response->status());
+                return response()->json(['success' => true, 'paid' => true, 'status' => 'paid', 'order' => $order->fresh()]);
             }
 
-            $resData = $response->json();
-            $text = $resData['candidates'][0]['content']['parts'][0]['text'] ?? '{}';
-            $extracted = json_decode(trim($text), true);
-
-            if (!$extracted || !isset($extracted['montant_paye']) || !isset($extracted['nom_ou_code_marchand']) || !isset($extracted['reference_transaction']) || !isset($extracted['date_paiement'])) {
-                return response()->json(['success' => false, 'message' => 'Impossible de lire correctement les informations du reçu. Veuillez renvoyer une image plus nette.'], 400);
+            if (in_array($statut, ['failure', 'no paid', 'cancelled', 'canceled'])) {
+                $order->update(['moneyfusion_status' => $statut]);
+                return response()->json(['success' => true, 'paid' => false, 'status' => $statut]);
             }
 
-            // 1. Validation de la date
-            $today = date('Y-m-d');
-            if ($extracted['date_paiement'] !== $today) {
-                return response()->json(['success' => false, 'message' => "La date du reçu (" . $extracted['date_paiement'] . ") ne correspond pas à la date d'aujourd'hui ($today)."], 400);
-            }
-
-            // 2. Validation du marchand
-            $expectedMerchant = $order->payment_method === 'tmoney' ? env('CODE_MARCHAND_TMONEY') : env('CODE_MARCHAND_MOOV');
-            $merchantRead = strval($extracted['nom_ou_code_marchand']);
-            if (stripos($merchantRead, $expectedMerchant) === false && stripos($expectedMerchant, $merchantRead) === false) {
-                return response()->json(['success' => false, 'message' => "Le marchand détecté ($merchantRead) ne correspond pas au marchand attendu ($expectedMerchant)."], 400);
-            }
-
-            // 3. Validation du montant
-            $amountRead = floatval($extracted['montant_paye']);
-            $orderAmount = floatval($order->total_amount);
-            if ($amountRead < $orderAmount) {
-                return response()->json(['success' => false, 'message' => "Le montant payé détecté ($amountRead F) est inférieur au montant requis ($orderAmount F)."], 400);
-            }
-
-            // 4. Référence unique (sécurité anti-fraude)
-            $refRead = trim($extracted['reference_transaction']);
-            if (empty($refRead)) {
-                return response()->json(['success' => false, 'message' => "La référence de transaction est vide sur le reçu."], 400);
-            }
-
-            $exists = Order::where('transaction_reference', $refRead)
-                           ->where('id', '!=', $order->id)
-                           ->where('status', 'Payée')
-                           ->exists();
-            if ($exists) {
-                return response()->json(['success' => false, 'message' => "Ce reçu a déjà été utilisé pour valider une autre commande (Tentative de fraude détectée)."], 400);
-            }
-
-            // Tout est valide !
-            $order->update([
-                'status' => 'Payée',
-                'transaction_reference' => $refRead,
-                'screenshot_path' => $path
-            ]);
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Paiement validé avec succès par Gemini Vision !',
-                'order' => $order
-            ]);
-
+            return response()->json(['success' => true, 'paid' => false, 'status' => $statut ?: 'pending']);
         } catch (\Throwable $e) {
-            Log::error("Gemini Validation Error: " . $e->getMessage());
-            return response()->json(['success' => false, 'message' => 'Erreur lors de la validation du reçu: ' . $e->getMessage()], 500);
+            Log::error("MoneyFusion status error: " . $e->getMessage());
+            return response()->json(['success' => false, 'message' => 'Erreur vérification: ' . $e->getMessage()], 500);
         }
+    }
+
+    /**
+     * Retour client après paiement (return_url MoneyFusion).
+     * GET /payment/callback?order_id=...
+     */
+    public function paymentCallback(Request $request)
+    {
+        $orderId = $request->query('order_id');
+        $order   = $orderId ? Order::find($orderId) : null;
+
+        if ($order && $order->status !== 'Payée' && $order->payment_token) {
+            try {
+                $service = new MoneyFusionService();
+                $result  = $service->checkStatus($order->payment_token);
+                $data    = $result['data'] ?? [];
+                if (strtolower($data['statut'] ?? '') === 'paid') {
+                    $order->update([
+                        'status'                => 'Payée',
+                        'moneyfusion_status'    => 'paid',
+                        'transaction_reference' => $data['numeroTransaction'] ?? $order->payment_token,
+                    ]);
+                }
+            } catch (\Throwable $e) {
+                Log::error("MoneyFusion callback check error: " . $e->getMessage());
+            }
+        }
+
+        if ($order) {
+            return redirect()->route('track', ['id' => $order->id]);
+        }
+
+        return redirect()->route('menu');
+    }
+
+    /**
+     * Webhook MoneyFusion (POST). Idempotent via tokenPay.
+     * POST /payment/webhook
+     */
+    public function paymentWebhook(Request $request)
+    {
+        $payload = $request->all();
+        $event   = $payload['event'] ?? '';
+        $token   = $payload['tokenPay'] ?? null;
+
+        if (!$token) {
+            return response()->json(['success' => false, 'message' => 'tokenPay manquant'], 400);
+        }
+
+        // Retrouve la commande par token, sinon via personal_Info.orderId
+        $order = Order::where('payment_token', $token)->first();
+        if (!$order) {
+            $orderId = $payload['personal_Info'][0]['orderId'] ?? null;
+            $order   = $orderId ? Order::find($orderId) : null;
+        }
+
+        if (!$order) {
+            return response()->json(['success' => false, 'message' => 'Commande introuvable'], 404);
+        }
+
+        // Ignore les notifications redondantes
+        if ($order->status === 'Payée' && in_array($event, ['payin.session.pending', 'payin.session.completed'])) {
+            return response()->json(['success' => true, 'message' => 'Déjà traitée']);
+        }
+
+        if ($event === 'payin.session.completed') {
+            $order->update([
+                'status'                => 'Payée',
+                'moneyfusion_status'    => 'paid',
+                'transaction_reference' => $payload['numeroTransaction'] ?? $token,
+            ]);
+        } elseif ($event === 'payin.session.cancelled') {
+            $order->update(['moneyfusion_status' => 'cancelled']);
+        } else { // pending ou autre : simple suivi
+            if ($order->moneyfusion_status !== 'paid') {
+                $order->update(['moneyfusion_status' => 'pending']);
+            }
+        }
+
+        return response()->json(['success' => true]);
     }
 }

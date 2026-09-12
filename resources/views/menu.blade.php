@@ -303,9 +303,10 @@
         const supplementsData = {
             garnitures: {!! json_encode($garnituresGlobal) !!}
         };
+        const CHECKOUT_URL = "{{ route('checkout') }}";
     </script>
     <!-- Script Logic -->
-    <script src="{{ asset('assets/js/cart.js') }}"></script>
+    <script src="{{ asset('assets/js/cart.js') }}?v=5"></script>
     <script>lucide.createIcons();</script>
 
 </body>

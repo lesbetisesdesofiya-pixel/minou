@@ -55,8 +55,15 @@
 
         @if ($order)
             @php
-                $rawStatus = strtolower($order->status);
-                if ($rawStatus === 'ready_for_pickup') {
+                $rawStatus = strtolower(trim($order->status));
+                $cancelled = in_array($rawStatus, ['annulée', 'annulee', 'cancelled', 'canceled']);
+                if ($cancelled) {
+                    $status = 'cancelled';
+                } elseif (in_array($rawStatus, ['en attente de paiement'])) {
+                    $status = 'pending';
+                } elseif (in_array($rawStatus, ['payée', 'payee', 'paid'])) {
+                    $status = 'preparing';
+                } elseif ($rawStatus === 'ready_for_pickup') {
                     $status = 'delivering';
                 } elseif ($rawStatus === 'delivered') {
                     $status = 'completed';
@@ -71,11 +78,13 @@
                 }
 
                 $statusLabels = [
-                    'pending' => 'Commande Reçue',
-                    'preparing' => 'En Préparation',
+                    'pending' => $rawStatus === 'en attente de paiement' ? 'En attente de paiement' : 'Commande Reçue',
+                    'preparing' => in_array($rawStatus, ['payée', 'payee', 'paid']) ? 'Payée — en préparation' : 'En Préparation',
                     'delivering' => 'En Livraison',
-                    'completed' => 'Livrée / Terminée'
+                    'completed' => 'Livrée / Terminée',
+                    'cancelled' => 'Commande annulée',
                 ];
+                $statusLabel = $statusLabels[$status] ?? $order->status;
             @endphp
             <!-- Status Card -->
             <div class="bg-white rounded-3xl p-6 md:p-8 shadow-sm border border-gray-100 mb-6 fade-in">
@@ -85,10 +94,10 @@
                             {{ $order->id }}
                         </p>
                         <h2 class="text-2xl font-black text-gray-900">
-                            {{ $statusLabels[$status] }}
+                            {{ $statusLabel }}
                         </h2>
                     </div>
-                    @if ($status !== 'completed')
+                    @if (!in_array($status, ['completed', 'cancelled']))
                         <div class="flex items-center gap-2 text-primary-500 font-bold text-sm animate-pulse">
                             <span class="w-2 h-2 bg-orange-500 rounded-full"></span>
                             Temps réel

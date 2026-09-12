@@ -3,11 +3,15 @@
 namespace App\Http\Controllers;
 
 use App\Models\Admin;
+use App\Models\DeliveryZone;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Dish;
 use App\Models\DishVariation;
 use App\Models\DeliveryPerson;
+use App\Services\MenuService;
+use App\Services\OrderService;
+use App\Services\PricingService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -92,6 +96,7 @@ class ApiController extends Controller
         $query = Order::with('driver')->orderByDesc('created_at');
         if ($request->status) $query->where('status', $request->status);
         if ($request->date)   $query->whereDate('created_at', $request->date);
+        if ($request->limit)  $query->limit((int) $request->limit);
 
         $orders = $query->get()->map(fn($o) => array_merge($o->toArray(), [
             'driver_first' => $o->driver?->first_name,
@@ -269,5 +274,277 @@ class ApiController extends Controller
             ->get();
 
         return response()->json(array_merge((array)$metrics, ['per_driver' => $perDriver]));
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    //  CATALOGUE & COMMANDE CLIENT (publics — même comportement que le web)
+    // ═══════════════════════════════════════════════════════════════════
+
+    // ─── GET /api/menu ───────────────────────────────────────────────────────
+    // Catalogue complet + barème des frais (pour app mobile / frontend externe)
+    public function menu(Request $request)
+    {
+        $catalog = (new MenuService())->catalog();
+        $pricing = new PricingService();
+
+        return response()->json([
+            'products'   => $catalog['productsData'],
+            'garnitures' => $catalog['garnituresGlobal'],
+            'fees'       => [
+                'service_rate'      => $pricing->feeRate(),
+                'service_label'     => 'Frais de service (' . rtrim(rtrim(number_format($pricing->feeRate() * 100, 2, ',', ''), '0'), ',') . '%)',
+                'delivery_default'  => $pricing->defaultDeliveryFee(),
+            ],
+            'delivery_zones' => $pricing->zonesMap(),
+        ]);
+    }
+
+    // ─── POST /api/quote ─────────────────────────────────────────────────────
+    // Devis sans créer de commande. Body JSON :
+    // { items: [{itemPrice, quantity}], service_type: "livraison|emporter", neighborhood }
+    public function quote(Request $request)
+    {
+        $pricing = new PricingService();
+        $quote   = $pricing->quote(
+            $request->input('items', []),
+            $request->input('service_type', 'emporter'),
+            $request->input('neighborhood')
+        );
+
+        return response()->json(array_merge($quote, [
+            'fee_rate'     => $pricing->feeRate(),
+            'currency'     => 'F',
+            'service_type' => $request->input('service_type', 'emporter'),
+        ]));
+    }
+
+    // ─── POST /api/orders ────────────────────────────────────────────────────
+    // Créer une commande (statut "En attente de paiement"). Body JSON :
+    // { serviceType, name, phone, neighborhood?, table?, notes?, paymentMethod?, items: [{id?, name, quantity, itemPrice, selectedOptions?}] }
+    public function storeOrder(Request $request)
+    {
+        $data = $request->json()->all() ?: $request->all();
+
+        try {
+            $result = (new OrderService())->create($data);
+            $order  = $result['order'];
+
+            return response()->json([
+                'success'      => true,
+                'order_id'     => $order->id,
+                'subtotal'     => $result['subtotal'],
+                'service_fee'  => $result['service_fee'],
+                'delivery_fee' => $result['delivery_fee'],
+                'total'        => $result['total'],
+                'status'       => $order->status,
+            ], 201);
+        } catch (\InvalidArgumentException $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 400);
+        } catch (\Throwable $e) {
+            return response()->json(['success' => false, 'message' => 'Erreur serveur: ' . $e->getMessage()], 500);
+        }
+    }
+
+    // ─── POST /api/orders/{id}/cancel ────────────────────────────────────────
+    public function cancelOrder(Request $request, int $id)
+    {
+        return app(CheckoutController::class)->cancel($request, $id);
+    }
+
+    // ─── POST /api/orders/{id}/moneyfusion/initiate ──────────────────────────
+    // Body JSON : { numeroSend, nomclient } → { payment_url, token }
+    public function initiatePayment(Request $request, int $id)
+    {
+        return app(CheckoutController::class)->initiateMoneyFusion($request, $id);
+    }
+
+    // ─── GET /api/orders/{id}/moneyfusion/status ─────────────────────────────
+    public function paymentStatus(Request $request, int $id)
+    {
+        return app(CheckoutController::class)->moneyFusionStatus($request, $id);
+    }
+
+    // ─── GET /api/orders/{id}/tracking ───────────────────────────────────────
+    // Suivi public d'une commande (même données que la page /track)
+    public function tracking(Request $request, int $id)
+    {
+        $order = Order::with(['items', 'driver'])->find($id);
+        if (!$order) return response()->json(['error' => 'Commande introuvable'], 404);
+
+        return response()->json([
+            'id'             => $order->id,
+            'status'         => $order->status,
+            'service_type'   => $order->service_type,
+            'client_name'    => $order->client_name,
+            'client_phone'   => $order->client_phone,
+            'neighborhood'   => $order->neighborhood,
+            'table_number'   => $order->table_number,
+            'subtotal'       => $order->subtotal_amount,
+            'service_fee'    => $order->service_fee,
+            'delivery_fee'   => $order->delivery_fee,
+            'total'          => $order->total_amount,
+            'driver_first'   => $order->driver?->first_name,
+            'driver_last'    => $order->driver?->last_name,
+            'created_at'     => $order->created_at,
+            'items'          => $order->items->map(fn($i) => [
+                'product_name' => $i->product_name,
+                'quantity'     => $i->quantity,
+                'price'        => $i->price,
+                'options'      => $i->options_text,
+            ]),
+        ]);
+    }
+
+    // ─── GET /api/delivery/zones (public) ────────────────────────────────────
+    public function deliveryZones(Request $request)
+    {
+        $pricing = new PricingService();
+
+        return response()->json([
+            'default_fee' => $pricing->defaultDeliveryFee(),
+            'zones'       => DeliveryZone::where('active', true)->orderBy('quartier')->get(['id', 'quartier', 'fee']),
+        ]);
+    }
+
+    // ─── POST /api/delivery/zones (admin JWT) ────────────────────────────────
+    public function storeZone(Request $request)
+    {
+        $this->requireAuth($request);
+
+        $validated = $request->validate([
+            'quartier' => 'required|string|max:100|unique:delivery_zones,quartier',
+            'fee'      => 'required|integer|min:0|max:100000',
+        ]);
+
+        $zone = DeliveryZone::create([
+            'quartier' => trim($validated['quartier']),
+            'fee'      => (int) $validated['fee'],
+            'active'   => true,
+        ]);
+
+        return response()->json(['success' => true, 'zone' => $zone], 201);
+    }
+
+    // ─── DELETE /api/delivery/zones/{id} (admin JWT) ─────────────────────────
+    public function destroyZone(Request $request, int $id)
+    {
+        $this->requireAuth($request);
+
+        $deleted = DeliveryZone::where('id', $id)->delete();
+        if (!$deleted) return response()->json(['error' => 'Zone introuvable'], 404);
+
+        return response()->json(['success' => true]);
+    }
+
+    // ─── POST /api/payment/webhook ( MoneyFusion → nous, sans auth) ──────────
+    public function paymentWebhook(Request $request)
+    {
+        return app(CheckoutController::class)->paymentWebhook($request);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    //  ADMINISTRATION (JWT admin requis)
+    // ═══════════════════════════════════════════════════════════════════
+
+    // ─── GET /api/admin/stats ────────────────────────────────────────────────
+    // Chiffres du dashboard : commandes, CA, frais, top récent
+    public function adminStats(Request $request)
+    {
+        $this->requireAuth($request);
+
+        return response()->json([
+            'total_orders'     => Order::count(),
+            'total_revenue'    => Order::where('status', '!=', 'cancelled')->sum('total_amount'),
+            'service_fees'     => Order::where('status', '!=', 'cancelled')->sum('service_fee'),
+            'delivery_fees'    => Order::where('status', '!=', 'cancelled')->sum('delivery_fee'),
+            'pending_orders'   => Order::where('status', 'pending')->count(),
+            'awaiting_payment' => Order::where('status', 'En attente de paiement')->count(),
+            'paid_orders'      => Order::where('status', 'Payée')->count(),
+            'delivered_orders' => Order::where('status', 'delivered')->count(),
+            'recent_orders'    => Order::orderByDesc('created_at')->limit(10)->get(),
+        ]);
+    }
+
+    // ─── GET /api/delivery/persons ───────────────────────────────────────────
+    public function deliveryPersons(Request $request)
+    {
+        $this->requireAuth($request);
+
+        return response()->json(
+            DeliveryPerson::orderBy('first_name')->orderBy('last_name')->get()
+        );
+    }
+
+    // ─── POST /api/delivery/persons ──────────────────────────────────────────
+    public function storePerson(Request $request)
+    {
+        $this->requireAuth($request);
+
+        $validated = $request->validate([
+            'first_name' => 'required|string|max:100',
+            'last_name'  => 'required|string|max:100',
+            'email'      => 'required|email|max:150|unique:delivery_persons,email',
+            'phone'      => 'nullable|string|max:20',
+        ]);
+
+        $person = DeliveryPerson::create(array_merge($validated, ['active' => true]));
+
+        return response()->json(['success' => true, 'driver' => $person], 201);
+    }
+
+    // ─── PATCH /api/delivery/persons/{id} ────────────────────────────────────
+    // Body : { first_name?, last_name?, phone?, active?, suspended? }
+    public function updatePerson(Request $request, int $id)
+    {
+        $this->requireAuth($request);
+
+        $person = DeliveryPerson::find($id);
+        if (!$person) return response()->json(['error' => 'Livreur introuvable'], 404);
+
+        $validated = $request->validate([
+            'first_name' => 'sometimes|string|max:100',
+            'last_name'  => 'sometimes|string|max:100',
+            'phone'      => 'nullable|string|max:20',
+            'active'     => 'sometimes|boolean',
+            'suspended'  => 'sometimes|boolean',
+        ]);
+
+        $person->update($validated);
+
+        return response()->json(['success' => true, 'driver' => $person->fresh()]);
+    }
+
+    // ─── GET /api/admin/menu ─────────────────────────────────────────────────
+    // Tous les plats (actifs + inactifs) pour gestion
+    public function adminMenu(Request $request)
+    {
+        $this->requireAuth($request);
+
+        $dishes = Dish::with('category')->orderBy('nom')->get()->map(fn($d) => [
+            'id'           => (int) $d->id,
+            'nom'          => $d->nom,
+            'prix'         => (float) $d->prix,
+            'category'     => $d->category?->nom ?? '',
+            'menu_type'    => $d->menu_type,
+            'active'       => (bool) $d->active,
+            'orders_count' => (int) $d->orders_count,
+        ]);
+
+        return response()->json($dishes);
+    }
+
+    // ─── PATCH /api/dishes/{id} ──────────────────────────────────────────────
+    // Body : { active } — activer/désactiver un plat au menu
+    public function updateDish(Request $request, int $id)
+    {
+        $this->requireAuth($request);
+
+        $dish = Dish::find($id);
+        if (!$dish) return response()->json(['error' => 'Plat introuvable'], 404);
+
+        $validated = $request->validate(['active' => 'required|boolean']);
+        $dish->update(['active' => $validated['active']]);
+
+        return response()->json(['success' => true, 'dish_id' => $dish->id, 'active' => (bool) $dish->fresh()->active]);
     }
 }

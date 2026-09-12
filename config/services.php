@@ -35,4 +35,13 @@ return [
         ],
     ],
 
+    'moneyfusion' => [
+        'api_url' => env('MONEYFUSION_API_URL'),
+        'status_url' => env('MONEYFUSION_STATUS_URL', 'https://pay.moneyfusion.net/paiementNotif'),
+        // Frais de service répercutés au client : 10% (payin + retrait + service)
+        'fee_rate' => (float) env('MONEYFUSION_FEE_RATE', 0.10),
+        'payin_rate' => (float) env('MONEYFUSION_PAYIN_RATE', 0.03),
+        'withdrawal_rate' => (float) env('MONEYFUSION_WITHDRAWAL_RATE', 0.035),
+    ],
+
 ];

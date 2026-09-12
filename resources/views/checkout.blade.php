@@ -213,13 +213,33 @@
                                 class="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent smooth-transition">
                         </div>
                         <div>
-                            <label class="block text-sm font-semibold text-slate-700 mb-2">Quartier & Précisions *</label>
-                            <input type="text" id="livraison-neighborhood"
-                                name="neighborhood"
-                                autocomplete="address-level2"
-                                minlength="3" maxlength="100"
-                                placeholder="Ex: Cocody, Yopougon..."
-                                class="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent smooth-transition">
+                            <label class="block text-sm font-semibold text-slate-700 mb-2">Quartier de livraison *</label>
+                            @if(!empty($deliveryZones))
+                                <select id="livraison-neighborhood"
+                                    name="neighborhood"
+                                    onchange="onQuartierChange()"
+                                    class="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-primary-500 smooth-transition bg-white">
+                                    <option value="">Sélectionnez votre quartier</option>
+                                    @foreach($deliveryZones as $quartier => $tarif)
+                                        <option value="{{ $quartier }}">{{ $quartier }} — {{ number_format($tarif, 0, ',', ' ') }} F de livraison</option>
+                                    @endforeach
+                                    <option value="__autre">Autre quartier — {{ number_format($deliveryDefaultFee, 0, ',', ' ') }} F de livraison</option>
+                                </select>
+                                <input type="text" id="livraison-neighborhood-autre"
+                                    maxlength="100"
+                                    placeholder="Précisez votre quartier"
+                                    oninput="refreshTotals()"
+                                    class="hidden mt-3 w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-primary-500 smooth-transition">
+                            @else
+                                <input type="text" id="livraison-neighborhood"
+                                    name="neighborhood"
+                                    autocomplete="address-level2"
+                                    minlength="3" maxlength="100"
+                                    placeholder="Ex: Cocody, Yopougon..."
+                                    oninput="refreshTotals()"
+                                    class="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent smooth-transition">
+                            @endif
+                            <p class="text-xs text-slate-400 mt-1">Livraison dès {{ number_format($deliveryDefaultFee, 0, ',', ' ') }} F selon le quartier (hors frais de service).</p>
                         </div>
                     </div>
                 </div>
@@ -271,9 +291,24 @@
                         <i data-lucide="clipboard-list" class="w-5 h-5 text-primary-500"></i> Récapitulatif de votre panier
                     </h3>
                     <div id="order-summary" class="space-y-3 mb-4 max-h-60 overflow-y-auto pr-1"></div>
-                    <div class="pt-4 border-t border-slate-100 flex justify-between items-center">
-                        <span class="text-base font-bold text-slate-900">Total à payer</span>
-                        <span id="order-total" class="text-2xl font-black text-primary-500">0 F</span>
+                    <div class="pt-4 border-t border-slate-100 space-y-1.5">
+                        <div class="flex justify-between items-center text-sm text-slate-500">
+                            <span>Sous-total</span>
+                            <span id="order-subtotal">0 F</span>
+                        </div>
+                        <div class="flex justify-between items-center text-sm text-slate-500">
+                            <span>Frais de service (10%)</span>
+                            <span id="order-fee">0 F</span>
+                        </div>
+                        <div id="row-delivery-fee" class="hidden flex justify-between items-center text-sm text-slate-500">
+                            <span>Frais de livraison</span>
+                            <span id="order-delivery">0 F</span>
+                        </div>
+                        <p class="text-[11px] text-slate-400 text-right">Payin + retrait + service inclus</p>
+                        <div class="flex justify-between items-center pt-1">
+                            <span class="text-base font-bold text-slate-900">Total à payer</span>
+                            <span id="order-total" class="text-2xl font-black text-primary-500">0 F</span>
+                        </div>
                     </div>
                 </div>
 
@@ -290,114 +325,73 @@
             </form>
         </div>
 
-        <!-- Step 2.5: Payment Method selection & USSD Copy (Étape 1 de paiement) -->
+        <!-- Step 2.5: Paiement MoneyFusion -->
         <div id="step-payment" class="hidden fade-in space-y-6">
-            <div class="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm">
-                <h2 class="text-xl font-bold text-slate-900 text-center mb-6">Sélectionnez votre moyen de paiement</h2>
-                
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
-                    <!-- Tmoney Card -->
-                    <button onclick="selectPaymentMethod('tmoney')" id="btn-pay-tmoney"
-                        class="p-5 border-2 border-slate-200 rounded-2xl flex flex-col items-center justify-center gap-3 hover:border-orange-500 hover:bg-orange-50/20 smooth-transition group">
-                        <div class="w-14 h-14 rounded-2xl bg-orange-100 flex items-center justify-center font-black text-orange-600 text-2xl group-hover:scale-110 smooth-transition">T</div>
-                        <div class="text-center">
-                            <span class="font-bold text-slate-800 block">TMoney</span>
-                            <span class="text-xs text-slate-400">Togo Cellulaire</span>
-                        </div>
-                    </button>
-                    <!-- Flooz Card -->
-                    <button onclick="selectPaymentMethod('flooz')" id="btn-pay-flooz"
-                        class="p-5 border-2 border-slate-200 rounded-2xl flex flex-col items-center justify-center gap-3 hover:border-blue-500 hover:bg-blue-50/20 smooth-transition group">
-                        <div class="w-14 h-14 rounded-2xl bg-blue-100 flex items-center justify-center font-black text-blue-600 text-2xl group-hover:scale-110 smooth-transition">F</div>
-                        <div class="text-center">
-                            <span class="font-bold text-slate-800 block">Flooz</span>
-                            <span class="text-xs text-slate-400">Moov Africa</span>
-                        </div>
-                    </button>
+            <div class="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-5">
+                <h2 class="text-xl font-bold text-slate-900 text-center">Paiement sécurisé avec MoneyFusion</h2>
+                <p class="text-sm text-slate-500 text-center">Payez par Mobile Money (TMoney, Flooz, Orange, MTN...). Vous serez redirigé vers la page de paiement.</p>
+
+                <div class="bg-slate-50 rounded-2xl p-5 border border-slate-100 text-center">
+                    <p class="text-xs font-bold text-slate-400 uppercase tracking-widest">Montant à payer</p>
+                    <p id="mf-amount" class="text-3xl font-black text-slate-900 mt-1">0 F</p>
+                    <p class="text-xs text-slate-400 mt-1"><span id="mf-subtotal"></span> + frais service 10% (<span id="mf-fee"></span>)<span id="mf-delivery-wrap" class="hidden"> + livraison (<span id="mf-delivery"></span>)</span></p>
                 </div>
 
-                <!-- USSD Code Details (Dynamic) -->
-                <div id="ussd-container" class="hidden bg-slate-50 rounded-2xl p-5 border border-slate-100/80 space-y-4">
-                    <h3 class="text-xs font-bold text-slate-400 uppercase tracking-widest text-center">Instructions de transfert</h3>
-                    
-                    <p class="text-sm text-slate-600 text-center">
-                        Voici le code USSD généré automatiquement pour payer votre commande de <span id="ussd-amount" class="font-bold text-slate-900"></span> :
-                    </p>
-                    
-                    <div class="flex items-center justify-between bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
-                        <code id="ussd-code-text" class="text-sm md:text-base font-mono font-bold text-primary-500 select-all overflow-x-auto whitespace-nowrap mr-2"></code>
-                        <button onclick="copyUssdCode()" class="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg smooth-transition shrink-0">
-                            <i data-lucide="copy" class="w-3.5 h-3.5"></i> Copier
-                        </button>
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-semibold text-slate-700 mb-2">Nom du payeur *</label>
+                        <input type="text" id="mf-nomclient" maxlength="80" placeholder="Nom complet"
+                            class="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-primary-500 smooth-transition">
                     </div>
-
-                    <p class="text-xs text-slate-400 text-center leading-relaxed">
-                        Pour Flooz Moov, une référence de transaction unique a été insérée de manière sécurisée pour votre suivi.
-                    </p>
-
-                    <button onclick="confirmCopyAndPay()" id="btn-confirm-pay"
-                        class="w-full py-4 bg-primary-500 hover:bg-primary-600 text-white font-bold rounded-xl smooth-transition shadow-md shadow-primary-500/10 flex items-center justify-center gap-2">
-                        <i data-lucide="clipboard-copy" class="w-5 h-5"></i>
-                        <span>Copier le code et payer</span>
-                    </button>
+                    <div>
+                        <label class="block text-sm font-semibold text-slate-700 mb-2">Numéro Mobile Money *</label>
+                        <input type="tel" id="mf-numero" inputmode="tel" maxlength="20" placeholder="Ex: 07 12 34 56"
+                            class="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-primary-500 smooth-transition">
+                    </div>
                 </div>
+
+                <div id="mf-error-alert" class="hidden bg-red-50 border border-red-100 rounded-2xl p-4 text-sm text-red-700"></div>
+
+                <button onclick="createOrderThenPay()" id="btn-mf-pay"
+                    class="w-full py-4 bg-primary-500 hover:bg-primary-600 text-white font-bold rounded-xl smooth-transition shadow-md flex items-center justify-center gap-2">
+                    <i data-lucide="lock" class="w-5 h-5"></i>
+                    <span id="btn-mf-pay-label">Payer avec MoneyFusion</span>
+                </button>
             </div>
-            
+
             <button type="button" onclick="backToDetails()"
                 class="w-full py-3.5 bg-slate-100 text-slate-700 rounded-xl font-semibold hover:bg-slate-200 smooth-transition text-center block">
                 Retour aux informations client
             </button>
         </div>
 
-        <!-- Step 2.6: Screenshot upload & cancellation (Étape 2 de paiement) -->
-        <div id="step-screenshot" class="hidden fade-in space-y-6">
-            <div class="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-6">
-                <h2 class="text-xl font-bold text-slate-900 text-center">Étape 2 : Confirmez votre paiement</h2>
-                
-                <div class="bg-amber-50 border border-amber-100 rounded-2xl p-5 text-sm text-amber-800 flex gap-3 shadow-inner">
-                    <i data-lucide="info" class="w-5 h-5 shrink-0 mt-0.5 text-amber-600"></i>
-                    <div>
-                        <p class="font-bold text-amber-950">Commande en attente de paiement !</p>
-                        <p class="mt-0.5 leading-relaxed">Le code USSD a été copié. Veuillez composer le code sur votre téléphone pour effectuer le paiement de <span id="screenshot-order-amount" class="font-bold"></span>.</p>
-                        <p class="mt-2 font-bold text-amber-950">Une fois le SMS de reçu reçu, faites une capture d'écran et déposez-la ci-dessous.</p>
-                    </div>
+        <!-- Step 2.6: Attente / vérification du paiement -->
+        <div id="step-waiting" class="hidden fade-in space-y-6">
+            <div class="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-6 text-center">
+                <h2 class="text-xl font-bold text-slate-900">Paiement en cours...</h2>
+
+                <div class="flex justify-center">
+                    <span class="inline-block w-12 h-12 border-4 border-slate-200 border-t-primary-500 rounded-full animate-spin"></span>
                 </div>
 
-                <div class="space-y-2">
-                    <span class="block text-sm font-semibold text-slate-700">Capture d'écran du reçu SMS de paiement *</span>
-                    
-                    <label class="flex flex-col items-center justify-center w-full h-44 border-2 border-dashed border-slate-300 rounded-2xl cursor-pointer hover:bg-slate-50 hover:border-primary-500 smooth-transition" id="screenshot-dropzone">
-                        <div class="flex flex-col items-center justify-center pt-5 pb-6 space-y-2 text-center px-4">
-                            <i data-lucide="image" class="w-12 h-12 text-slate-400" id="upload-icon"></i>
-                            <p class="text-sm text-slate-600 font-bold" id="upload-text">Cliquez ici pour sélectionner l'image du reçu</p>
-                            <p class="text-xs text-slate-400">Formats supportés : JPG, JPEG, PNG</p>
-                        </div>
-                        <input type="file" id="screenshot-input" accept="image/*" class="hidden" onchange="handleFileSelected(event)" />
-                    </label>
+                <p class="text-sm text-slate-600 leading-relaxed">
+                    Commande <span id="waiting-order-id" class="font-bold text-slate-900"></span> créée pour
+                    <span id="waiting-amount" class="font-bold text-slate-900"></span>.<br>
+                    Finalisez le paiement sur la page MoneyFusion, puis revenez ici : la validation est automatique.
+                </p>
 
-                    <div id="screenshot-preview-container" class="hidden relative rounded-2xl overflow-hidden border border-slate-200 bg-slate-50 max-h-64 flex items-center justify-center p-3">
-                        <img id="screenshot-preview" class="max-h-56 rounded-xl object-contain shadow-sm">
-                        <button onclick="removeSelectedFile()" class="absolute top-4 right-4 p-2 bg-red-600 hover:bg-red-700 text-white rounded-full smooth-transition shadow-md">
-                            <i data-lucide="trash-2" class="w-4.5 h-4.5"></i>
-                        </button>
-                    </div>
+                <div id="waiting-error-alert" class="hidden bg-red-50 border border-red-100 rounded-2xl p-4 text-sm text-red-700 text-left"></div>
+
+                <div class="space-y-3">
+                    <a id="btn-open-mf" href="#" target="_blank" rel="noopener"
+                        class="w-full py-4 bg-slate-900 text-white font-bold rounded-xl hover:bg-slate-800 smooth-transition flex items-center justify-center gap-2">
+                        <i data-lucide="external-link" class="w-5 h-5"></i> Ouvrir la page de paiement
+                    </a>
+                    <button onclick="checkPaymentNow()" id="btn-check-paid"
+                        class="w-full py-4 bg-primary-500 hover:bg-primary-600 text-white font-bold rounded-xl smooth-transition flex items-center justify-center gap-2">
+                        <i data-lucide="check-circle-2" class="w-5 h-5"></i> J'ai payé, vérifier
+                    </button>
                 </div>
-
-                <!-- Payment validation alert error -->
-                <div id="payment-error-alert" class="hidden bg-red-50 border border-red-100 rounded-2xl p-4 text-sm text-red-700 flex gap-2.5">
-                    <i data-lucide="alert-triangle" class="w-5 h-5 shrink-0 mt-0.5 text-red-600"></i>
-                    <div>
-                        <p class="font-bold text-red-950">Erreur de validation</p>
-                        <p id="payment-error-message" class="mt-0.5 leading-relaxed"></p>
-                    </div>
-                </div>
-
-                <!-- Validation Action Buttons -->
-                <button onclick="submitScreenshot()" id="btn-validate-payment" disabled
-                    class="w-full py-4 bg-primary-500 hover:bg-primary-600 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-bold rounded-2xl smooth-transition shadow-lg flex items-center justify-center gap-2">
-                    <i data-lucide="check-circle-2" class="w-5 h-5"></i>
-                    <span>Valider la commande</span>
-                </button>
             </div>
 
             <!-- Cancel Button -->
@@ -414,16 +408,30 @@
                     <i data-lucide="badge-check" class="w-12 h-12"></i>
                 </div>
                 <h2 class="text-2xl md:text-3xl font-extrabold text-slate-900 mb-2">Commande payée et confirmée !</h2>
-                <p class="text-slate-500 mb-8 max-w-sm mx-auto">Votre reçu a été validé avec succès par notre IA. Notre équipe commence la préparation.</p>
+                <p class="text-slate-500 mb-8 max-w-sm mx-auto">Votre paiement MoneyFusion a été confirmé. Notre équipe commence la préparation.</p>
 
                 <!-- Order Details Summary -->
                 <div id="order-summary-success"
                     class="mb-8 text-left bg-slate-50 rounded-2xl p-6 border border-slate-100 hidden">
                     <h3 class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">Résumé de votre commande</h3>
                     <div id="summary-items-list" class="space-y-3 mb-4"></div>
-                    <div class="pt-4 border-t border-slate-200/80 flex justify-between items-center font-extrabold">
-                        <span class="text-slate-900">Total payé</span>
-                        <span id="summary-total-amount" class="text-primary-500 text-lg"></span>
+                    <div class="pt-4 border-t border-slate-200/80 space-y-1.5">
+                        <div class="flex justify-between text-sm">
+                            <span class="text-slate-500">Sous-total</span>
+                            <span id="summary-subtotal" class="font-bold text-slate-700"></span>
+                        </div>
+                        <div class="flex justify-between text-sm">
+                            <span class="text-slate-500">Frais de service (10%)</span>
+                            <span id="summary-fee" class="font-bold text-slate-700"></span>
+                        </div>
+                        <div id="row-summary-delivery" class="hidden flex justify-between text-sm">
+                            <span class="text-slate-500">Frais de livraison</span>
+                            <span id="summary-delivery" class="font-bold text-slate-700"></span>
+                        </div>
+                        <div class="flex justify-between items-center font-extrabold pt-1">
+                            <span class="text-slate-900">Total payé</span>
+                            <span id="summary-total-amount" class="text-primary-500 text-lg"></span>
+                        </div>
                     </div>
                 </div>
 
@@ -431,6 +439,10 @@
                     <a id="btn-track-order" href="#"
                         class="w-full py-4 bg-orange-500 text-white rounded-xl font-bold hover:bg-orange-600 smooth-transition flex items-center justify-center gap-2 shadow-lg shadow-orange-200">
                         <i data-lucide="compass" class="w-5 h-5"></i> Suivre ma commande en direct
+                    </a>
+                    <a id="btn-whatsapp" href="#" target="_blank" rel="noopener"
+                        class="w-full py-4 bg-[#25D366] text-white rounded-xl font-bold hover:brightness-95 smooth-transition flex items-center justify-center gap-2 shadow-lg shadow-green-200">
+                        <i data-lucide="message-circle" class="w-5 h-5"></i> Suivre sur WhatsApp
                     </a>
                     <button onclick="downloadReceipt()"
                         class="w-full py-3.5 bg-slate-900 text-white rounded-xl font-medium hover:bg-slate-800 smooth-transition flex items-center justify-center gap-2">
@@ -453,12 +465,26 @@
         </div>
 
         <script>
+            const ORDERS_BASE_URL = "{{ url('orders') }}";
+            // Frais de service : 10% (le serveur recalcule et fait foi)
+            const SERVICE_FEE_RATE = {{ (float) config('services.moneyfusion.fee_rate', 0.10) }};
+            function calcFee(subtotal) { return Math.round(subtotal * SERVICE_FEE_RATE); }
+            // Barème livraison : zones spécifiques + forfait par défaut (0 si à emporter)
+            const DELIVERY_ZONES = {!! json_encode($deliveryZones ?? []) !!};
+            const DELIVERY_DEFAULT_FEE = {{ (int) ($deliveryDefaultFee ?? 1000) }};
+            function calcDeliveryFee() {
+                if (currentServiceType !== 'livraison') return 0;
+                const q = (getNeighborhoodValue() || '').trim().toLowerCase();
+                for (const [quartier, tarif] of Object.entries(DELIVERY_ZONES)) {
+                    if (q !== '' && q === String(quartier).trim().toLowerCase()) return parseInt(tarif, 10) || 0;
+                }
+                return q !== '' ? DELIVERY_DEFAULT_FEE : 0;
+            }
             let currentServiceType = '';
             let orderData = {};
-            let selectedPaymentMethod = '';
-            let ussdCode = '';
-            let generatedReference = '';
-            let selectedFile = null;
+            let paymentToken = '';
+            let paymentUrl = '';
+            let pollTimer = null;
 
             document.addEventListener('DOMContentLoaded', () => {
                 // Lucide icon helper
@@ -471,17 +497,14 @@
                     if (lastOrder && lastOrder.orderId) {
                         orderData = lastOrder;
                         currentServiceType = lastOrder.serviceType;
-                        selectedPaymentMethod = lastOrder.paymentMethod;
-                        generatedReference = lastOrder.transactionReference;
+                        paymentToken = lastOrder.paymentToken || '';
+                        paymentUrl = lastOrder.paymentUrl || '';
 
                         // Mettre à jour l'indicateur d'étape
                         updateStepper(3);
 
-                        // Afficher le bon montant
-                        document.getElementById('screenshot-order-amount').textContent = formatAmount(orderData.total);
-
-                        // Afficher directement l'étape 2 (Dépôt du reçu)
-                        showPaymentStep2(lastOrder);
+                        // Reprendre l'attente de paiement + polling
+                        showWaitingStep();
                         return;
                     }
                 }
@@ -528,6 +551,7 @@
                 document.getElementById('form-emporter').classList.add('hidden');
 
                 document.getElementById(`form-${type}`).classList.remove('hidden');
+                refreshTotals();
             }
 
             function backToServiceType() {
@@ -537,10 +561,10 @@
 
             function displayOrderSummary(cart) {
                 const container = document.getElementById('order-summary');
-                let total = 0;
+                let subtotal = 0;
                 container.innerHTML = cart.map(item => {
                     const itemTotal = item.itemPrice * item.quantity;
-                    total += itemTotal;
+                    subtotal += itemTotal;
                     return `
                     <div class="flex justify-between py-2.5 border-b border-slate-100">
                         <div>
@@ -553,9 +577,48 @@
                     </div>
                 `;
                 }).join('');
+                const serviceFee = calcFee(subtotal);
+                const deliveryFee = (typeof calcDeliveryFee === 'function') ? calcDeliveryFee() : 0;
+                const total = subtotal + serviceFee + deliveryFee;
+                document.getElementById('order-subtotal').textContent = `${subtotal.toLocaleString('fr-FR')} F`;
+                document.getElementById('order-fee').textContent = `${serviceFee.toLocaleString('fr-FR')} F`;
+                const rowDel = document.getElementById('row-delivery-fee');
+                if (rowDel) {
+                    rowDel.classList.toggle('hidden', deliveryFee <= 0);
+                    document.getElementById('order-delivery').textContent = `${deliveryFee.toLocaleString('fr-FR')} F`;
+                }
                 document.getElementById('order-total').textContent = `${total.toLocaleString('fr-FR')} F`;
+                orderData.subtotal = subtotal;
+                orderData.serviceFee = serviceFee;
+                orderData.deliveryFee = deliveryFee;
                 orderData.total = total;
                 orderData.items = cart;
+            }
+
+            // Quartier effectif (select + champ "Autre" ou saisie libre)
+            function getNeighborhoodValue() {
+                const sel = document.getElementById('livraison-neighborhood');
+                if (!sel) return '';
+                if (sel.tagName === 'SELECT') {
+                    if (sel.value === '__autre') {
+                        return document.getElementById('livraison-neighborhood-autre')?.value?.trim() ?? '';
+                    }
+                    return sel.value;
+                }
+                return sel.value?.trim() ?? '';
+            }
+
+            function onQuartierChange() {
+                const sel = document.getElementById('livraison-neighborhood');
+                const autre = document.getElementById('livraison-neighborhood-autre');
+                if (autre) autre.classList.toggle('hidden', sel.value !== '__autre');
+                clearFieldError('livraison-neighborhood');
+                refreshTotals();
+            }
+
+            function refreshTotals() {
+                const cart = orderData.items || [];
+                if (cart.length) displayOrderSummary(cart);
             }
 
             // Toast helper
@@ -636,11 +699,16 @@
             }
 
             function validateNeighborhood(id) {
-                const val = document.getElementById(id)?.value?.trim() ?? '';
-                if (!val) { setFieldError(id, 'Le quartier est obligatoire.'); return false; }
-                if (val.length < NEIGHBORHOOD_MIN) { setFieldError(id, `Minimum ${NEIGHBORHOOD_MIN} caractères.`); return false; }
-                if (val.length > NEIGHBORHOOD_MAX) { setFieldError(id, `Maximum ${NEIGHBORHOOD_MAX} caractères.`); return false; }
-                clearFieldError(id); return val;
+                const sel = document.getElementById(id);
+                const isSelect = sel && sel.tagName === 'SELECT';
+                const targetId = (isSelect && sel.value === '__autre') ? 'livraison-neighborhood-autre' : id;
+                const val = (getNeighborhoodValue() || '').trim();
+                if (!val || (isSelect && sel.value === '')) { setFieldError(targetId, 'Veuillez choisir votre quartier.'); return false; }
+                if (val.length < NEIGHBORHOOD_MIN) { setFieldError(targetId, `Minimum ${NEIGHBORHOOD_MIN} caractères.`); return false; }
+                if (val.length > NEIGHBORHOOD_MAX) { setFieldError(targetId, `Maximum ${NEIGHBORHOOD_MAX} caractères.`); return false; }
+                clearFieldError('livraison-neighborhood');
+                clearFieldError('livraison-neighborhood-autre');
+                return val;
             }
 
             // Attach validation events
@@ -656,6 +724,8 @@
                     document.getElementById(id)?.addEventListener('blur', () => validatePhone(id));
                 });
                 document.getElementById('livraison-neighborhood')?.addEventListener('blur', () => validateNeighborhood('livraison-neighborhood'));
+                document.getElementById('livraison-neighborhood')?.addEventListener('change', () => validateNeighborhood('livraison-neighborhood'));
+                document.getElementById('livraison-neighborhood-autre')?.addEventListener('blur', () => validateNeighborhood('livraison-neighborhood'));
 
                 document.getElementById('order-notes')?.addEventListener('input', function() {
                     if (this.value.length > NOTES_MAX) this.value = this.value.slice(0, NOTES_MAX);
@@ -691,125 +761,204 @@
 
                 if (!valid) return;
 
-                // Transition vers l'Étape 1 du Paiement
+                // Transition vers le paiement MoneyFusion (pré-remplissage)
                 document.getElementById('step-details').classList.add('hidden');
                 document.getElementById('step-payment').classList.remove('hidden');
+                document.getElementById('mf-amount').textContent = formatAmount(orderData.total);
+                document.getElementById('mf-subtotal').textContent = formatAmount(orderData.subtotal || 0);
+                document.getElementById('mf-fee').textContent = formatAmount(orderData.serviceFee || 0);
+                const mfDelWrap = document.getElementById('mf-delivery-wrap');
+                if (mfDelWrap) {
+                    mfDelWrap.classList.toggle('hidden', !(orderData.deliveryFee > 0));
+                    document.getElementById('mf-delivery').textContent = formatAmount(orderData.deliveryFee || 0);
+                }
+                document.getElementById('btn-mf-pay-label').textContent = `Payer ${formatAmount(orderData.total)} avec MoneyFusion`;
+                if (orderData.name) document.getElementById('mf-nomclient').value = stripTags(orderData.name);
+                if (orderData.phone) document.getElementById('mf-numero').value = stripTags(orderData.phone);
 
                 // Mettre à jour l'indicateur d'étape
                 updateStepper(2);
             }
 
-            function selectPaymentMethod(method) {
-                selectedPaymentMethod = method;
-                
-                // Mettre à jour les boutons visuellement
-                const btnTmoney = document.getElementById('btn-pay-tmoney');
-                const btnFlooz = document.getElementById('btn-pay-flooz');
-                
-                if (method === 'tmoney') {
-                    btnTmoney.className = "p-5 border-2 border-orange-500 bg-orange-50/20 rounded-2xl flex flex-col items-center justify-center gap-3 smooth-transition group shadow-sm";
-                    btnFlooz.className = "p-5 border border-slate-200 rounded-2xl flex flex-col items-center justify-center gap-3 hover:border-blue-500 hover:bg-blue-50/20 smooth-transition group";
-                } else {
-                    btnFlooz.className = "p-5 border-2 border-blue-500 bg-blue-50/20 rounded-2xl flex flex-col items-center justify-center gap-3 smooth-transition group shadow-sm";
-                    btnTmoney.className = "p-5 border border-slate-200 rounded-2xl flex flex-col items-center justify-center gap-3 hover:border-orange-500 hover:bg-orange-50/20 smooth-transition group";
-                }
-
-                const amount = orderData.total;
-                document.getElementById('ussd-amount').textContent = formatAmount(amount);
-
-                // Récupération des codes marchands depuis le backend inséré via Blade
-                if (method === 'tmoney') {
-                    const merchantTmoney = "{{ env('CODE_MARCHAND_TMONEY', '123456') }}";
-                    ussdCode = `*145*5*${amount}*${merchantTmoney}#`;
-                    generatedReference = '';
-                } else {
-                    const merchantMoov = "{{ env('CODE_MARCHAND_MOOV', '654321') }}";
-                    // Génération d'une référence Flooz unique
-                    generatedReference = 'FLZ' + Date.now().toString().slice(-6) + Math.floor(Math.random() * 1000);
-                    ussdCode = `*155*2*1*${generatedReference}*${merchantMoov}*${merchantMoov}*${amount}#`;
-                }
-
-                document.getElementById('ussd-code-text').textContent = ussdCode;
-                document.getElementById('ussd-container').classList.remove('hidden');
-                lucide.createIcons();
+            function stripTags(s) {
+                const d = document.createElement('div');
+                d.innerHTML = s;
+                return d.textContent || '';
             }
 
-            function copyUssdCode() {
-                if (!ussdCode) return;
-                navigator.clipboard.writeText(ussdCode).then(() => {
-                    showToast("Code USSD copié avec succès !");
-                }).catch(err => {
-                    console.error("Erreur de copie : ", err);
-                    showToast("Erreur de copie, sélectionnez le code à la main.", false);
-                });
+            function csrfToken() {
+                return document.querySelector('meta[name="csrf-token"]').getAttribute('content');
             }
 
-            async function confirmCopyAndPay() {
-                // 1. Copier le code
-                copyUssdCode();
+            function mfError(msg) {
+                const el = document.getElementById('mf-error-alert');
+                el.textContent = msg;
+                el.classList.remove('hidden');
+            }
 
-                // Préparer les données de commande
-                const notesRaw = (document.getElementById('order-notes').value || '').trim().slice(0, NOTES_MAX);
-                orderData.serviceType = currentServiceType;
-                orderData.notes       = sanitize(notesRaw);
-                orderData.paymentMethod = selectedPaymentMethod;
-                orderData.transactionReference = generatedReference || null;
+            async function createOrderThenPay() {
+                const nomclient = (document.getElementById('mf-nomclient').value || '').trim();
+                const numeroSend = (document.getElementById('mf-numero').value || '').replace(/\s+/g, '');
+                document.getElementById('mf-error-alert').classList.add('hidden');
 
-                const btnConfirm = document.getElementById('btn-confirm-pay');
-                const originalText = btnConfirm.innerHTML;
-                btnConfirm.disabled = true;
-                btnConfirm.innerHTML = '<span class="inline-block animate-spin mr-2">⏳</span>Création de la commande...';
+                if (nomclient.length < 2) { mfError('Veuillez saisir le nom du payeur.'); return; }
+                if (!/^[\d+\-()]{8,20}$/.test(numeroSend)) { mfError('Numéro Mobile Money invalide.'); return; }
 
-                // 2. Envoi au serveur pour créer la commande en statut "En attente de paiement"
+                const btn = document.getElementById('btn-mf-pay');
+                const original = btn.innerHTML;
+                btn.disabled = true;
+                btn.innerHTML = '<span class="inline-block animate-spin mr-2">⏳</span>Création de la commande...';
+
                 try {
-                    const response = await fetch('{{ route('orders.store') }}', {
+                    // 1. Créer la commande (En attente de paiement)
+                    const notesRaw = (document.getElementById('order-notes').value || '').trim().slice(0, NOTES_MAX);
+                    orderData.serviceType = currentServiceType;
+                    orderData.notes = sanitize(notesRaw);
+                    orderData.paymentMethod = 'moneyfusion';
+
+                    let resp = await fetch('{{ route('orders.store') }}', {
                         method: 'POST',
-                        headers: { 
-                            'Content-Type': 'application/json',
-                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
-                        },
+                        headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrfToken() },
                         body: JSON.stringify(orderData)
                     });
+                    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+                    let created = await resp.json();
+                    if (!created.success) throw new Error(created.message || 'Commande refusée');
 
-                    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-                    const result = await response.json();
+                    orderData.orderId = created.order_id;
+                    // Totaux serveur (frais recalculés, font foi)
+                    if (created.subtotal !== undefined) orderData.subtotal = created.subtotal;
+                    if (created.service_fee !== undefined) orderData.serviceFee = created.service_fee;
+                    if (created.delivery_fee !== undefined) orderData.deliveryFee = created.delivery_fee;
+                    if (created.total !== undefined) orderData.total = created.total;
+                    await saveOrderToIndexedDB(created.order_id, orderData.total);
 
-                    if (result.success) {
-                        orderData.orderId = result.order_id;
-                        
-                        // 3. Sauvegarde dans le LocalStorage
-                        localStorage.setItem('paiement_en_cours', 'true');
-                        localStorage.setItem('lastOrder', JSON.stringify(orderData));
-                        localStorage.removeItem('restaurantCart'); // Panier vidé de la boutique principale
+                    // 2. Initier le paiement MoneyFusion
+                    btn.innerHTML = '<span class="inline-block animate-spin mr-2">⏳</span>Connexion à MoneyFusion...';
+                    resp = await fetch(`${ORDERS_BASE_URL}/${created.order_id}/moneyfusion/initiate`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrfToken() },
+                        body: JSON.stringify({ numeroSend, nomclient })
+                    });
+                    const init = await resp.json();
+                    if (!init.success) throw new Error(init.message || 'MoneyFusion indisponible');
 
-                        await saveOrderToIndexedDB(result.order_id, orderData.total);
+                    paymentToken = init.token;
+                    paymentUrl = init.payment_url;
+                    orderData.paymentToken = paymentToken;
+                    orderData.paymentUrl = paymentUrl;
 
-                        // Afficher le montant sur l'étape suivante
-                        document.getElementById('screenshot-order-amount').textContent = formatAmount(orderData.total);
+                    localStorage.setItem('paiement_en_cours', 'true');
+                    localStorage.setItem('lastOrder', JSON.stringify(orderData));
+                    localStorage.removeItem('restaurantCart');
 
-                        // 4. Basculer instantanément sur l'Étape 2 (Dépôt du reçu)
-                        showPaymentStep2(orderData);
-                    } else {
-                        alert('Erreur: ' + (result.message || 'Impossible d\'enregistrer la commande.'));
-                        btnConfirm.disabled = false;
-                        btnConfirm.innerHTML = originalText;
-                    }
+                    // 3. Ouvrir la page de paiement + afficher l'attente
+                    window.open(paymentUrl, '_blank');
+                    showWaitingStep();
                 } catch (err) {
                     console.error(err);
-                    alert('Une erreur serveur est survenue. Veuillez réessayer.');
-                    btnConfirm.disabled = false;
-                    btnConfirm.innerHTML = originalText;
+                    mfError(err.message || 'Erreur lors du paiement.');
+                    btn.disabled = false;
+                    btn.innerHTML = original;
                 }
             }
 
-            function showPaymentStep2(lastOrder) {
+            function showWaitingStep() {
                 document.getElementById('step-payment').classList.add('hidden');
                 document.getElementById('step-details').classList.add('hidden');
                 document.getElementById('step-service-type').classList.add('hidden');
-                
-                document.getElementById('step-screenshot').classList.remove('hidden');
-                
+                document.getElementById('step-waiting').classList.remove('hidden');
+
+                document.getElementById('waiting-order-id').textContent = '#' + (orderData.orderId || '');
+                document.getElementById('waiting-amount').textContent = formatAmount(orderData.total || 0);
+                const openBtn = document.getElementById('btn-open-mf');
+                if (openBtn && paymentUrl) openBtn.href = paymentUrl;
+
                 updateStepper(3);
+                startPolling();
+                lucide.createIcons();
+            }
+
+            function startPolling() {
+                stopPolling();
+                pollTimer = setInterval(checkPaymentNow, 5000);
+            }
+
+            function stopPolling() {
+                if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+            }
+
+            async function checkPaymentNow() {
+                if (!orderData.orderId) return;
+                const errEl = document.getElementById('waiting-error-alert');
+                errEl.classList.add('hidden');
+
+                const btn = document.getElementById('btn-check-paid');
+                const original = btn.innerHTML;
+                btn.disabled = true;
+                btn.innerHTML = '<span class="inline-block animate-spin mr-2">⏳</span>Vérification...';
+
+                try {
+                    const resp = await fetch(`${ORDERS_BASE_URL}/${orderData.orderId}/moneyfusion/status`);
+                    const result = await resp.json();
+
+                    if (result.paid) {
+                        stopPolling();
+                        showPaymentSuccess();
+                    } else if (result.status && !['pending', ''].includes(String(result.status))) {
+                        errEl.textContent = 'Paiement : ' + result.status + '. Réessayez ou annulez la commande.';
+                        errEl.classList.remove('hidden');
+                    } else {
+                        showToast('Paiement toujours en attente...', false);
+                    }
+                } catch (err) {
+                    errEl.textContent = 'Vérification impossible pour le moment. Réessayez.';
+                    errEl.classList.remove('hidden');
+                } finally {
+                    btn.disabled = false;
+                    btn.innerHTML = original;
+                }
+            }
+
+            function showPaymentSuccess() {
+                stopPolling();
+                localStorage.removeItem('paiement_en_cours');
+                localStorage.removeItem('lastOrder');
+
+                document.getElementById('step-waiting').classList.add('hidden');
+                document.getElementById('step-success').classList.remove('hidden');
+
+                const trackBtn = document.getElementById('btn-track-order');
+                if (trackBtn) trackBtn.href = `{{ route('track') }}?id=${orderData.orderId}`;
+
+                const waBtn = document.getElementById('btn-whatsapp');
+                if (waBtn) {
+                    const waText = encodeURIComponent(`Salut, j'aimerais suivre ma commande N°${orderData.orderId} merci`);
+                    waBtn.href = `https://wa.me/22899215580?text=${waText}`;
+                }
+
+                const summaryDiv  = document.getElementById('order-summary-success');
+                const summaryList = document.getElementById('summary-items-list');
+                const summaryTot  = document.getElementById('summary-total-amount');
+                if (summaryDiv && summaryList && summaryTot) {
+                    summaryList.innerHTML = orderData.items.map(item => `
+                        <div class="flex justify-between text-sm py-1">
+                            <span class="text-slate-600">${item.quantity}x ${item.name}</span>
+                            <span class="font-bold text-slate-900">${formatAmount(item.itemPrice * item.quantity)}</span>
+                        </div>
+                    `).join('');
+                    document.getElementById('summary-subtotal').textContent = formatAmount(orderData.subtotal || 0);
+                    document.getElementById('summary-fee').textContent = formatAmount(orderData.serviceFee || 0);
+                    const rowSumDel = document.getElementById('row-summary-delivery');
+                    if (rowSumDel) {
+                        rowSumDel.classList.toggle('hidden', !(orderData.deliveryFee > 0));
+                        document.getElementById('summary-delivery').textContent = formatAmount(orderData.deliveryFee || 0);
+                    }
+                    summaryTot.textContent = formatAmount(orderData.total);
+                    summaryDiv.classList.remove('hidden');
+                }
+
+                showToast('Paiement confirmé ! Merci de votre confiance.');
                 lucide.createIcons();
             }
 
@@ -819,126 +968,20 @@
                 updateStepper(1);
             }
 
-            // Gestion de l'upload et de la preview
-            function handleFileSelected(e) {
-                const file = e.target.files[0];
-                if (!file) return;
-
-                selectedFile = file;
-
-                // Activer le bouton de validation
-                document.getElementById('btn-validate-payment').disabled = false;
-
-                // Afficher l'aperçu de l'image
-                const reader = new FileReader();
-                reader.onload = function(e) {
-                    document.getElementById('screenshot-preview').src = e.target.result;
-                    document.getElementById('screenshot-dropzone').classList.add('hidden');
-                    document.getElementById('screenshot-preview-container').classList.remove('hidden');
-                }
-                reader.readAsDataURL(file);
-            }
-
-            function removeSelectedFile() {
-                selectedFile = null;
-                document.getElementById('screenshot-input').value = '';
-                document.getElementById('btn-validate-payment').disabled = true;
-                
-                document.getElementById('screenshot-preview-container').classList.add('hidden');
-                document.getElementById('screenshot-dropzone').classList.remove('hidden');
-            }
-
-            async function submitScreenshot() {
-                if (!selectedFile) return;
-
-                const btn = document.getElementById('btn-validate-payment');
-                const btnCancel = document.getElementById('btn-cancel-order');
-                const errorAlert = document.getElementById('payment-error-alert');
-                
-                errorAlert.classList.add('hidden');
-
-                const originalText = btn.innerHTML;
-                btn.disabled = true;
-                btnCancel.disabled = true;
-                btn.innerHTML = '<span class="inline-block animate-spin mr-2">⏳</span>Vérification de votre reçu en cours avec l\'IA Gemini...';
-
-                const formData = new FormData();
-                formData.append('screenshot', selectedFile);
-
-                try {
-                    const response = await fetch(`/orders/${orderData.orderId}/validate-payment`, {
-                        method: 'POST',
-                        headers: {
-                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
-                        },
-                        body: formData
-                    });
-
-                    const result = await response.json();
-
-                    if (result.success) {
-                        // Succès complet ! Nettoyer le LocalStorage
-                        localStorage.removeItem('paiement_en_cours');
-                        localStorage.removeItem('lastOrder');
-
-                        // Transitionner vers l'écran final de succès
-                        document.getElementById('step-screenshot').classList.add('hidden');
-                        document.getElementById('step-success').classList.remove('hidden');
-
-                        // Mettre à jour les liens de tracking
-                        const trackBtn = document.getElementById('btn-track-order');
-                        if (trackBtn) trackBtn.href = `{{ route('track') }}?id=${orderData.orderId}`;
-
-                        const summaryDiv  = document.getElementById('order-summary-success');
-                        const summaryList = document.getElementById('summary-items-list');
-                        const summaryTot  = document.getElementById('summary-total-amount');
-                        if (summaryDiv && summaryList && summaryTot) {
-                            summaryList.innerHTML = orderData.items.map(item => `
-                                <div class="flex justify-between text-sm py-1">
-                                    <span class="text-slate-600">${item.quantity}x ${item.name}</span>
-                                    <span class="font-bold text-slate-900">${formatAmount(item.itemPrice * item.quantity)}</span>
-                                </div>
-                            `).join('');
-                            summaryTot.textContent = formatAmount(orderData.total);
-                            summaryDiv.classList.remove('hidden');
-                        }
-
-                        showToast("Paiement validé avec succès ! Merci de votre confiance.");
-                    } else {
-                        // Échec de validation automatique
-                        document.getElementById('payment-error-message').textContent = result.message || "La capture d'écran n'est pas valide. Veuillez vérifier votre reçu et réessayer.";
-                        errorAlert.classList.remove('hidden');
-
-                        btn.disabled = false;
-                        btnCancel.disabled = false;
-                        btn.innerHTML = originalText;
-                    }
-                } catch (err) {
-                    console.error(err);
-                    document.getElementById('payment-error-message').textContent = "Erreur serveur ou de connexion avec l'IA. Veuillez vérifier votre réseau et réessayer.";
-                    errorAlert.classList.remove('hidden');
-
-                    btn.disabled = false;
-                    btnCancel.disabled = false;
-                    btn.innerHTML = originalText;
-                }
-            }
-
             async function cancelOrder() {
                 if (!confirm("Voulez-vous vraiment annuler cette commande ? Vos articles seront replacés dans votre panier.")) {
                     return;
                 }
 
                 const btnCancel = document.getElementById('btn-cancel-order');
-                const btnValidate = document.getElementById('btn-validate-payment');
-                
+
                 const originalText = btnCancel.textContent;
                 btnCancel.disabled = true;
-                btnValidate.disabled = true;
+                stopPolling();
                 btnCancel.textContent = 'Annulation en cours...';
 
                 try {
-                    const response = await fetch(`/orders/${orderData.orderId}/cancel`, {
+                    const response = await fetch(`${ORDERS_BASE_URL}/${orderData.orderId}/cancel`, {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
@@ -964,14 +1007,12 @@
                     } else {
                         alert("Impossible d'annuler : " + result.message);
                         btnCancel.disabled = false;
-                        btnValidate.disabled = false;
                         btnCancel.textContent = originalText;
                     }
                 } catch (err) {
                     console.error(err);
                     alert("Erreur de connexion lors de l'annulation de la commande.");
                     btnCancel.disabled = false;
-                    btnValidate.disabled = false;
                     btnCancel.textContent = originalText;
                 }
             }
@@ -1008,7 +1049,7 @@
                 const date = new Date().toLocaleString('fr-FR');
                 doc.text(`Date : ${date}`, 20, 65);
                 doc.text(`Mode de retrait : ${currentServiceType.toUpperCase()}`, 20, 71);
-                doc.text(`Moyen de paiement : ${selectedPaymentMethod.toUpperCase()}`, 20, 77);
+                doc.text(`Moyen de paiement : MoneyFusion`, 20, 77);
                 if (orderData.name) doc.text(`Client : ${orderData.name}`, 20, 83);
                 if (orderData.phone) doc.text(`Téléphone : ${orderData.phone}`, 20, 89);
                 if (orderData.neighborhood) doc.text(`Lieu de livraison : ${orderData.neighborhood}`, 20, 95);
@@ -1050,6 +1091,17 @@
                 y += 5;
                 doc.setDrawColor(200, 200, 200);
                 doc.line(120, y, 190, y);
+                y += 8;
+                doc.setFontSize(10);
+                doc.setFont('helvetica', 'normal');
+                doc.text(`Sous-total : ${formatAmount(orderData.subtotal || 0)}`, 120, y);
+                y += 6;
+                doc.text(`Frais de service (10%) : ${formatAmount(orderData.serviceFee || 0)}`, 120, y);
+                y += 6;
+                if (orderData.deliveryFee > 0) {
+                    doc.text(`Frais de livraison : ${formatAmount(orderData.deliveryFee)}`, 120, y);
+                    y += 6;
+                }
                 y += 10;
                 doc.setFontSize(14);
                 doc.setFont('helvetica', 'bold');

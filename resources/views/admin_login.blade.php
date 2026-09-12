@@ -16,7 +16,7 @@
                 {{ session('error') }}
             </p>
         @endif
-        <form method="POST" action="/admin-login" class="space-y-4">
+        <form method="POST" action="{{ url('admin-login') }}" class="space-y-4">
             @csrf
             <div>
                 <label class="block text-sm font-medium text-gray-700">Adresse e-mail</label>

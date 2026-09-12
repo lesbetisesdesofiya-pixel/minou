@@ -115,6 +115,62 @@
                     </div>
                 </div>
 
+                <!-- Delivery Zones -->
+                <div class="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+                    <div class="px-6 py-4 border-b border-gray-200">
+                        <h3 class="font-bold text-gray-800 text-lg">Livraison — quartiers à tarif spécial</h3>
+                        <p class="text-sm text-gray-500 mt-1">
+                            Forfait par défaut : <span class="font-bold text-gray-800">{{ number_format($deliveryDefaultFee, 0, ',', ' ') }} F</span>
+                            partout ailleurs. Les quartiers cités ici apparaissent dans la liste déroulante du client avec leur tarif.
+                        </p>
+                    </div>
+                    <div class="p-6 grid md:grid-cols-2 gap-6">
+                        <div>
+                            @if (session('zone_success'))
+                                <p class="bg-green-50 text-green-700 border border-green-200 p-3 rounded-xl mb-4 text-sm font-medium">{{ session('zone_success') }}</p>
+                            @endif
+                            @if ($errors->any())
+                                <div class="bg-red-50 text-red-600 border border-red-200 p-3 rounded-xl mb-4 text-sm">
+                                    @foreach ($errors->all() as $error)
+                                        <p>{{ $error }}</p>
+                                    @endforeach
+                                </div>
+                            @endif
+                            <form action="{{ route('admin.zones.store') }}" method="POST" class="flex flex-col sm:flex-row gap-3">
+                                @csrf
+                                <input type="text" name="quartier" required maxlength="100" placeholder="Nom du quartier"
+                                    class="flex-1 px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none text-sm">
+                                <input type="number" name="fee" required min="0" max="100000" step="50" value="1500" title="Tarif en F"
+                                    class="w-full sm:w-32 px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none text-sm">
+                                <button type="submit"
+                                    class="px-5 py-2.5 bg-slate-900 text-white rounded-xl font-semibold hover:bg-slate-800 transition text-sm whitespace-nowrap">
+                                    Ajouter
+                                </button>
+                            </form>
+                        </div>
+                        <div>
+                            @forelse ($deliveryZones as $zone)
+                                <div class="flex items-center justify-between py-2.5 border-b border-gray-100 last:border-0">
+                                    <div>
+                                        <p class="font-semibold text-gray-800 text-sm">{{ $zone->quartier }}</p>
+                                        <p class="text-xs text-gray-500">{{ number_format($zone->fee, 0, ',', ' ') }} F de livraison</p>
+                                    </div>
+                                    <form action="{{ route('admin.zones.destroy', $zone->id) }}" method="POST"
+                                        onsubmit="return confirm('Retirer ce quartier ? Le forfait par défaut s\'appliquera.')">
+                                        @csrf
+                                        @method('DELETE')
+                                        <button type="submit" class="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition">
+                                            <i data-lucide="trash-2" class="w-4 h-4"></i>
+                                        </button>
+                                    </form>
+                                </div>
+                            @empty
+                                <p class="text-gray-400 italic text-sm py-4">Aucun quartier cité : forfait {{ number_format($deliveryDefaultFee, 0, ',', ' ') }} F partout.</p>
+                            @endforelse
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Recent Orders Table -->
                 <div class="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
                     <div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between">

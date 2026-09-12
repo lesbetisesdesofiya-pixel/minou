@@ -494,8 +494,17 @@ function showCart() {
     document.getElementById('cartModal').classList.remove('hidden');
 }
 
+// Frais de service répercutés au client : 10%
+const SERVICE_FEE_RATE = 0.10;
+
+function calcFee(subtotal) {
+    return Math.round(subtotal * SERVICE_FEE_RATE);
+}
+
 function renderCartItems() {
     const subtotal = cart.reduce((sum, item) => sum + (item.itemPrice * item.quantity), 0);
+    const serviceFee = calcFee(subtotal);
+    const total = subtotal + serviceFee;
     document.getElementById('cartItems').innerHTML = `
         <div class="space-y-4">
             ${cart.map((item, index) => `
@@ -527,13 +536,22 @@ function renderCartItems() {
                     </div>
                 </div>
             `).join('')}
-            <div class="bg-gray-900 rounded-xl p-5 text-white mt-4">
-                <div class="flex justify-between items-center">
+            <div class="bg-gray-900 rounded-xl p-5 text-white mt-4 space-y-2">
+                <div class="flex justify-between items-center text-sm text-gray-300">
+                    <span>Sous-total</span>
+                    <span>${subtotal.toLocaleString('fr-FR')} F</span>
+                </div>
+                <div class="flex justify-between items-center text-sm text-gray-300">
+                    <span>Frais de service (10%)</span>
+                    <span>${serviceFee.toLocaleString('fr-FR')} F</span>
+                </div>
+                <p class="text-[11px] text-gray-400">Payin + retrait + service inclus · Hors livraison (dès 1 000 F, calculée à l'étape suivante)</p>
+                <div class="flex justify-between items-center pt-2 border-t border-gray-700">
                     <span class="text-base">Total</span>
-                    <span class="text-2xl font-bold">${subtotal.toLocaleString('fr-FR')} F</span>
+                    <span class="text-2xl font-bold">${total.toLocaleString('fr-FR')} F</span>
                 </div>
             </div>
-            <button onclick="window.location.href='/checkout'" 
+            <button onclick="window.location.href=(typeof CHECKOUT_URL !== 'undefined' ? CHECKOUT_URL : 'checkout')" 
                     class="w-full py-4 bg-primary-500 text-white rounded-xl font-semibold hover:bg-primary-600 transition mt-2">Valider la commande →</button>
         </div>
     `;
