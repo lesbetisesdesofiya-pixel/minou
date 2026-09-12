@@ -57,18 +57,18 @@ Route::get('/delivery/zones', [ApiController::class, 'deliveryZones']);
 // ─── Devis (public) ──────────────────────────────────────────────────────────
 Route::post('/quote', [ApiController::class, 'quote']);
 
-// ─── Commandes client (public) ───────────────────────────────────────────────
-Route::post('/orders', [ApiController::class, 'storeOrder']);
+// ─── Commandes client (public, throttlées anti-spam) ───────────────────────────
+Route::post('/orders', [ApiController::class, 'storeOrder'])->middleware('throttle:20,1');
 Route::post('/orders/{id}/cancel', [ApiController::class, 'cancelOrder']);
-Route::post('/orders/{id}/moneyfusion/initiate', [ApiController::class, 'initiatePayment']);
+Route::post('/orders/{id}/moneyfusion/initiate', [ApiController::class, 'initiatePayment'])->middleware('throttle:20,1');
 Route::get('/orders/{id}/moneyfusion/status', [ApiController::class, 'paymentStatus']);
 Route::get('/orders/{id}/tracking', [ApiController::class, 'tracking']);
 
 // ─── Webhook MoneyFusion (public, serveur-à-serveur) ─────────────────────────
 Route::post('/payment/webhook', [ApiController::class, 'paymentWebhook']);
 
-// ─── Auth admin (public, délivre le JWT) ─────────────────────────────────────
-Route::post('/auth/login', [ApiController::class, 'login']);
+// ─── Auth admin (public, délivre le JWT — anti-brute-force) ───────────────────
+Route::post('/auth/login', [ApiController::class, 'login'])->middleware('throttle:10,1');
 
 // ─── Gestion (JWT admin requis) ──────────────────────────────────────────────
 Route::get('/admin/stats', [ApiController::class, 'adminStats']);

@@ -299,9 +299,9 @@
 
     <!-- Data Injection -->
     <script>
-        const productsData = {!! json_encode($productsData) !!};
+        const productsData = {!! json_encode($productsData, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) !!};
         const supplementsData = {
-            garnitures: {!! json_encode($garnituresGlobal) !!}
+            garnitures: {!! json_encode($garnituresGlobal, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) !!}
         };
         const CHECKOUT_URL = "{{ route('checkout') }}";
     </script>

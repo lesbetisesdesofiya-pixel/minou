@@ -18,9 +18,7 @@ class OrderService
 {
     public function create(array $data): array
     {
-        if (empty($data)) {
-            throw new \InvalidArgumentException('Données invalides');
-        }
+        $this->validate($data);
 
         $pricing = new PricingService();
         $serviceType  = $data['serviceType'] ?? 'emporter';
@@ -93,6 +91,61 @@ class OrderService
         } catch (\Throwable $e) {
             DB::rollBack();
             throw $e;
+        }
+    }
+
+    /**
+     * Validation stricte anti-abus (400 si rejeté). Les prix sont recalculés
+     * serveur de toute façon ; ici on bloque paniers vides/absurdes et champs hors format.
+     */
+    private function validate(array $data): void
+    {
+        if (empty($data) || !is_array($data)) {
+            throw new \InvalidArgumentException('Données invalides');
+        }
+
+        $serviceType = $data['serviceType'] ?? 'emporter';
+        if (!in_array($serviceType, ['livraison', 'emporter'], true)) {
+            throw new \InvalidArgumentException('Type de service invalide');
+        }
+
+        $items = $data['items'] ?? [];
+        if (!is_array($items) || count($items) === 0) {
+            throw new \InvalidArgumentException('Panier vide');
+        }
+        if (count($items) > 50) {
+            throw new \InvalidArgumentException('Trop d’articles (max 50 lignes)');
+        }
+        foreach ($items as $item) {
+            if (!is_array($item)) {
+                throw new \InvalidArgumentException('Article invalide');
+            }
+            $qty = $item['quantity'] ?? 1;
+            if (!is_numeric($qty) || (int) $qty < 1 || (int) $qty > 99) {
+                throw new \InvalidArgumentException('Quantité invalide (1-99)');
+            }
+            $price = $item['itemPrice'] ?? null;
+            if (!is_numeric($price) || (float) $price < 0 || (float) $price > 10000000) {
+                throw new \InvalidArgumentException('Prix invalide');
+            }
+            if (isset($item['name']) && mb_strlen((string) $item['name']) > 120) {
+                throw new \InvalidArgumentException('Nom d’article trop long');
+            }
+            if (isset($item['selectedOptions']) && (!is_array($item['selectedOptions']) || count($item['selectedOptions']) > 20)) {
+                throw new \InvalidArgumentException('Options invalides');
+            }
+        }
+
+        foreach (['name' => 80, 'phone' => 20, 'neighborhood' => 100] as $field => $max) {
+            if (isset($data[$field]) && mb_strlen((string) $data[$field]) > $max) {
+                throw new \InvalidArgumentException("Champ {$field} trop long (max {$max})");
+            }
+        }
+        if (isset($data['notes']) && mb_strlen((string) $data['notes']) > 500) {
+            throw new \InvalidArgumentException('Notes trop longues (max 500)');
+        }
+        if ($serviceType === 'livraison' && empty(trim((string) ($data['neighborhood'] ?? '')))) {
+            throw new \InvalidArgumentException('Quartier requis pour la livraison');
         }
     }
 }

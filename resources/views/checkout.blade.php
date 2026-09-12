@@ -470,7 +470,7 @@
             const SERVICE_FEE_RATE = {{ (float) config('services.moneyfusion.fee_rate', 0.10) }};
             function calcFee(subtotal) { return Math.round(subtotal * SERVICE_FEE_RATE); }
             // Barème livraison : zones spécifiques + forfait par défaut (0 si à emporter)
-            const DELIVERY_ZONES = {!! json_encode($deliveryZones ?? []) !!};
+            const DELIVERY_ZONES = {!! json_encode($deliveryZones ?? [], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) !!};
             const DELIVERY_DEFAULT_FEE = {{ (int) ($deliveryDefaultFee ?? 1000) }};
             function calcDeliveryFee() {
                 if (currentServiceType !== 'livraison') return 0;

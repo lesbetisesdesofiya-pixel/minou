@@ -44,4 +44,8 @@ return [
         'withdrawal_rate' => (float) env('MONEYFUSION_WITHDRAWAL_RATE', 0.035),
     ],
 
+    'jwt' => [
+        'secret' => env('JWT_SECRET'),
+    ],
+
 ];

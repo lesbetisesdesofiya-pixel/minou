@@ -19,7 +19,16 @@ use Illuminate\Support\Facades\Hash;
 class ApiController extends Controller
 {
     // ─── JWT Helpers ────────────────────────────────────────────────────────────
-    private string $jwtSecret = 'your-secret-key-change-this';
+    // Secret chargé paresseusement : les endpoints publics marchent sans JWT configuré,
+    // toute opération de signature/vérification exige JWT_SECRET défini dans .env.
+    private function jwtSecret(): string
+    {
+        $secret = (string) config('services.jwt.secret', '');
+        if ($secret === '' || $secret === 'change-me-in-production') {
+            throw new \RuntimeException('JWT_SECRET manquant : définissez une valeur forte dans .env');
+        }
+        return $secret;
+    }
 
     private function base64urlEncode(string $data): string
     {
@@ -37,7 +46,7 @@ class ApiController extends Controller
         $payload['iat'] = time();
         $payload['exp'] = time() + 3600 * 24 * 7;
         $body    = $this->base64urlEncode(json_encode($payload));
-        $sig     = $this->base64urlEncode(hash_hmac('sha256', "{$header}.{$body}", $this->jwtSecret, true));
+        $sig     = $this->base64urlEncode(hash_hmac('sha256', "{$header}.{$body}", $this->jwtSecret(), true));
         return "{$header}.{$body}.{$sig}";
     }
 
@@ -46,7 +55,7 @@ class ApiController extends Controller
         $parts = explode('.', $token);
         if (count($parts) !== 3) return null;
         [$header, $body, $sig] = $parts;
-        $expected = $this->base64urlEncode(hash_hmac('sha256', "{$header}.{$body}", $this->jwtSecret, true));
+        $expected = $this->base64urlEncode(hash_hmac('sha256', "{$header}.{$body}", $this->jwtSecret(), true));
         if (!hash_equals($expected, $sig)) return null;
         $payload = json_decode($this->base64urlDecode($body), true);
         if (!$payload || (isset($payload['exp']) && $payload['exp'] < time())) return null;
@@ -167,6 +176,11 @@ class ApiController extends Controller
 
         if (!$orderId || !$driverId) {
             return response()->json(['error' => 'order_id et driver_id requis'], 400);
+        }
+
+        $driver = DeliveryPerson::find($driverId);
+        if (!$driver || !$driver->active || $driver->suspended) {
+            return response()->json(['error' => 'Livreur indisponible'], 422);
         }
 
         $rows = Order::where('id', $orderId)->update(['assigned_driver_id' => $driverId, 'status' => 'PREPARING']);

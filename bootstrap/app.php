@@ -18,6 +18,8 @@ return Application::configure(basePath: dirname(__DIR__))
             'payment/webhook',
             'api/*',
         ]);
+        // En-têtes de sécurité sur toutes les réponses (web + API)
+        $middleware->append(\App\Http\Middleware\SecurityHeaders::class);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //

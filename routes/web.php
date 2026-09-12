@@ -19,7 +19,7 @@ Route::get('/track', [TrackController::class, 'show'])->name('track');
 
 // Admin Routes
 Route::get('/admin-login', [AdminController::class, 'showLoginForm'])->name('admin.login');
-Route::post('/admin-login', [AdminController::class, 'login']);
+Route::post('/admin-login', [AdminController::class, 'login'])->middleware('throttle:5,1');
 Route::get('/admin/dashboard', [AdminController::class, 'dashboard'])->name('admin.dashboard');
 Route::post('/admin/logout', [AdminController::class, 'logout'])->name('admin.logout');
 Route::post('/admin/delivery-zones', [AdminController::class, 'storeZone'])->name('admin.zones.store');

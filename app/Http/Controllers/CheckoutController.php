@@ -51,7 +51,6 @@ class CheckoutController extends Controller
                 'service_fee'=> $result['service_fee'],
                 'delivery_fee' => $result['delivery_fee'],
                 'total'      => $result['total'],
-                '_fcm_debug' => $result['fcm'],
             ]);
         } catch (\InvalidArgumentException $e) {
             return response()->json(['success' => false, 'message' => $e->getMessage()], 400);
@@ -74,6 +73,12 @@ class CheckoutController extends Controller
 
             if ($order->status === 'Annulée') {
                 return response()->json(['success' => true, 'message' => 'Commande déjà annulée']);
+            }
+
+            // Sécurité : on ne peut annuler qu'une commande non payée / non préparée.
+            // (Pas de remboursement automatique : une commande Payée ne s'annule qu'au restaurant.)
+            if (!in_array($order->status, ['En attente de paiement', 'pending'], true)) {
+                return response()->json(['success' => false, 'message' => 'Commande déjà payée ou en cours : annulation impossible en ligne, contactez le restaurant.'], 409);
             }
 
             // Mettre à jour le statut
@@ -137,8 +142,11 @@ class CheckoutController extends Controller
         $numeroSend = preg_replace('/\s+/', '', trim($request->input('numeroSend', $order->client_phone ?? '')));
         $nomclient  = trim($request->input('nomclient', $order->client_name ?? ''));
 
-        if (!$numeroSend || !$nomclient) {
-            return response()->json(['success' => false, 'message' => 'Numéro et nom du client requis'], 400);
+        if (!preg_match('/^[\d+\-()]{8,20}$/', $numeroSend ?? '')) {
+            return response()->json(['success' => false, 'message' => 'Numéro Mobile Money invalide'], 400);
+        }
+        if (mb_strlen($nomclient) < 2 || mb_strlen($nomclient) > 80) {
+            return response()->json(['success' => false, 'message' => 'Nom du payeur invalide'], 400);
         }
 
         // Articles au format MoneyFusion : [{ nom_article: prix }]
@@ -307,10 +315,36 @@ class CheckoutController extends Controller
         }
 
         if ($event === 'payin.session.completed') {
+            // Anti-fraude : le montant notifié doit couvrir la commande
+            $notified = (float) ($payload['Montant'] ?? 0);
+            if ($notified > 0 && $notified < (float) $order->total_amount) {
+                Log::warning("MoneyFusion webhook montant insuffisant order={$order->id} notified={$notified}");
+                return response()->json(['success' => false, 'message' => 'Montant insuffisant'], 400);
+            }
+
+            // Anti-fraude : si l'API est configurée, on re-vérifie le statut
+            // en serveur-à-serveur avant de marquer Payée (un POST forgé ne suffit pas).
+            if (config('services.moneyfusion.api_url')) {
+                try {
+                    $check  = (new MoneyFusionService())->checkStatus($token);
+                    $remote = strtolower($check['data']['statut'] ?? '');
+                    if ($remote !== 'paid') {
+                        $order->update(['moneyfusion_status' => $remote ?: 'pending']);
+                        return response()->json(['success' => true, 'message' => 'En attente de confirmation MoneyFusion']);
+                    }
+                    $ref = $check['data']['numeroTransaction'] ?? ($payload['numeroTransaction'] ?? $token);
+                } catch (\Throwable $e) {
+                    Log::error("MoneyFusion webhook verify error: " . $e->getMessage());
+                    return response()->json(['success' => true, 'message' => 'Vérification reportée']);
+                }
+            } else {
+                $ref = $payload['numeroTransaction'] ?? $token;
+            }
+
             $order->update([
                 'status'                => 'Payée',
                 'moneyfusion_status'    => 'paid',
-                'transaction_reference' => $payload['numeroTransaction'] ?? $token,
+                'transaction_reference' => $ref,
             ]);
         } elseif ($event === 'payin.session.cancelled') {
             $order->update(['moneyfusion_status' => 'cancelled']);
