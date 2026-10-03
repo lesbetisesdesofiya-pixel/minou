@@ -15,6 +15,9 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    networks:
+      - default
+      - web
 
   db:
     image: mysql:8.0
@@ -34,3 +37,10 @@ services:
 
 volumes:
   dbdata:
+
+# Réseau du reverse-proxy Caddy existant (classinote-caddy-1) :
+# Caddy joint ce réseau et route avepozo.operatogo.net -> opera-app:80 (HTTPS auto).
+networks:
+  web:
+    external: true
+    name: classinote_default
