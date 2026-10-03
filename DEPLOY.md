@@ -18,6 +18,8 @@ cp .env.docker.example .env
 nano .env   # APP_KEY (généré auto), DB_PASSWORD, JWT_SECRET (64 hex), MoneyFusion
 docker compose up -d --build
 docker compose exec app php artisan db:seed --force   # comptes admin + livreur
+# Données du menu (exportées du local) :
+PW=$(grep -E '^DB_PASSWORD=' .env | cut -d= -f2) && docker compose exec -T db mysql -uroot -p"$PW" opera_resto < database/menu-seed.sql
 ```
 
 ## 4. VPS — reverse-proxy + HTTPS (nginx hôte)
