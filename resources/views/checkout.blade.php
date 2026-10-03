@@ -6,8 +6,29 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Finaliser la commande | Opéra Restaurant</title>
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    @vite(['resources/css/app.css', 'resources/js/app.js'])
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: {
+                            50: '#fff7ed',
+                            100: '#ffedd5',
+                            500: '#ff6b35',
+                            600: '#ea580c',
+                        },
+                        navy: {
+                            800: '#1e3a5f',
+                            900: '#0f172a',
+                        }
+                    }
+                }
+            }
+        }
+
         // IndexedDB Helper
         const DB_NAME = 'OperaRestoDB';
         const DB_VERSION = 1;
@@ -331,23 +352,11 @@
 
                 <div id="mf-error-alert" class="hidden bg-red-50 border border-red-100 rounded-2xl p-4 text-sm text-red-700"></div>
 
-                @if($moneyfusionConfigured)
                 <button onclick="createOrderThenPay()" id="btn-mf-pay"
                     class="w-full py-4 bg-primary-500 hover:bg-primary-600 text-white font-bold rounded-xl smooth-transition shadow-md flex items-center justify-center gap-2">
                     <i data-lucide="lock" class="w-5 h-5"></i>
                     <span id="btn-mf-pay-label">Payer avec MoneyFusion</span>
                 </button>
-                @else
-                <!-- MODE TEST (MoneyFusion non configuré) : parcours direct -->
-                <div id="mf-simulate-wrap" class="bg-amber-50 border border-amber-200 rounded-2xl p-5 space-y-3">
-                    <p class="text-sm text-amber-800"><span class="font-bold">Mode TEST</span> — MoneyFusion n'est pas encore configuré. La commande sera marquée payée directement pour tester tout le parcours.</p>
-                    <button onclick="createThenSimulate()" id="btn-mf-simulate"
-                        class="w-full py-4 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl smooth-transition shadow-md flex items-center justify-center gap-2">
-                        <i data-lucide="flask-conical" class="w-5 h-5"></i>
-                        <span id="btn-mf-simulate-label">Continuer en mode TEST</span>
-                    </button>
-                </div>
-                @endif
             </div>
 
             <button type="button" onclick="backToDetails()"
@@ -479,16 +488,13 @@
 
             document.addEventListener('DOMContentLoaded', () => {
                 // Lucide icon helper
-                if (window.lucide) lucide.createIcons();
+                lucide.createIcons();
 
                 // 1. Gestion de la persistance (Sécurité Anti-Rechargement)
-                // On ne reprend l'attente que si le paiement a été réellement initié (token présent),
-                // sinon les données résiduelles sont purgées pour éviter un polling en échec (400).
                 const paymentInProgress = localStorage.getItem('paiement_en_cours') === 'true';
                 if (paymentInProgress) {
-                    let lastOrder = null;
-                    try { lastOrder = JSON.parse(localStorage.getItem('lastOrder')); } catch (e) { lastOrder = null; }
-                    if (lastOrder && lastOrder.orderId && lastOrder.paymentToken) {
+                    const lastOrder = JSON.parse(localStorage.getItem('lastOrder'));
+                    if (lastOrder && lastOrder.orderId) {
                         orderData = lastOrder;
                         currentServiceType = lastOrder.serviceType;
                         paymentToken = lastOrder.paymentToken || '';
@@ -501,8 +507,6 @@
                         showWaitingStep();
                         return;
                     }
-                    localStorage.removeItem('paiement_en_cours');
-                    localStorage.removeItem('lastOrder');
                 }
 
                 // Chargement normal
@@ -623,17 +627,7 @@
                 const msgEl = document.getElementById('toast-message');
                 msgEl.textContent = message;
                 
-                const iconEl = toast.querySelector('i, svg');
-                if (!iconEl) {
-                    // Icône déjà remplacée ou absente : afficher quand même le message
-                    toast.classList.remove('translate-y-20', 'opacity-0', 'pointer-events-none');
-                    toast.classList.add('translate-y-0', 'opacity-100');
-                    setTimeout(() => {
-                        toast.classList.remove('translate-y-0', 'opacity-100');
-                        toast.classList.add('translate-y-20', 'opacity-0', 'pointer-events-none');
-                    }, 4000);
-                    return;
-                }
+                const iconEl = toast.querySelector('i');
                 if (isSuccess) {
                     iconEl.innerHTML = '<polyline points="20 6 9 17 4 12"></polyline>';
                     iconEl.className = 'w-5 h-5 text-green-400 shrink-0';
@@ -649,7 +643,7 @@
                     toast.classList.remove('translate-y-0', 'opacity-100');
                     toast.classList.add('translate-y-20', 'opacity-0', 'pointer-events-none');
                 }, 4000);
-                if (window.lucide) lucide.createIcons();
+                lucide.createIcons();
             }
 
             // ── Validation helpers ──────────────────────────────────────────────
@@ -778,10 +772,7 @@
                     mfDelWrap.classList.toggle('hidden', !(orderData.deliveryFee > 0));
                     document.getElementById('mf-delivery').textContent = formatAmount(orderData.deliveryFee || 0);
                 }
-                const payLabel = document.getElementById('btn-mf-pay-label');
-                if (payLabel) payLabel.textContent = `Payer ${formatAmount(orderData.total)} avec MoneyFusion`;
-                const simLabel = document.getElementById('btn-mf-simulate-label');
-                if (simLabel) simLabel.textContent = `Continuer en mode TEST — ${formatAmount(orderData.total)}`;
+                document.getElementById('btn-mf-pay-label').textContent = `Payer ${formatAmount(orderData.total)} avec MoneyFusion`;
                 if (orderData.name) document.getElementById('mf-nomclient').value = stripTags(orderData.name);
                 if (orderData.phone) document.getElementById('mf-numero').value = stripTags(orderData.phone);
 
@@ -866,113 +857,13 @@
                     showWaitingStep();
                 } catch (err) {
                     console.error(err);
-                    const msg = err.message || 'Erreur lors du paiement.';
-                    mfError(msg);
-                    // MoneyFusion non configuré → proposer la simulation TEST
-                    // (la commande est créée, orderData.orderId est donc disponible)
-                    if (msg.includes('non configurée') && orderData.orderId) {
-                        document.getElementById('mf-simulate-wrap')?.classList.remove('hidden');
-                        if (window.lucide) lucide.createIcons();
-                    }
-                    btn.disabled = false;
-                    btn.innerHTML = original;
-                }
-            }
-
-            // Simulation TEST : marque la commande payée sans MoneyFusion.
-            // Backend verrouillé : 403 dès que MONEYFUSION_API_URL est renseignée.
-            async function simulatePayment() {
-                if (!orderData.orderId) return;
-                const btn = document.getElementById('btn-mf-simulate');
-                const original = btn.innerHTML;
-                btn.disabled = true;
-                btn.innerHTML = '<span class="inline-block animate-spin mr-2">⏳</span>Simulation...';
-
-                try {
-                    const resp = await fetch(`${ORDERS_BASE_URL}/${orderData.orderId}/moneyfusion/simulate`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrfToken() }
-                    });
-                    const result = await resp.json();
-                    if (!result.success) throw new Error(result.message || 'Simulation refusée');
-
-                    if (result.subtotal !== undefined) orderData.subtotal = result.subtotal;
-                    if (result.service_fee !== undefined) orderData.serviceFee = result.service_fee;
-                    if (result.delivery_fee !== undefined) orderData.deliveryFee = result.delivery_fee;
-                    if (result.total !== undefined) orderData.total = result.total;
-                    await saveOrderToIndexedDB(orderData.orderId, orderData.total);
-                    localStorage.removeItem('restaurantCart');
-
-                    showPaymentSuccess();
-                } catch (err) {
-                    mfError(err.message || 'Erreur de simulation.');
-                    btn.disabled = false;
-                    btn.innerHTML = original;
-                }
-            }
-
-            // MODE TEST : crée la commande puis la marque payée directement.
-            async function createThenSimulate() {
-                const nomclient = (document.getElementById('mf-nomclient').value || '').trim();
-                const numeroSend = (document.getElementById('mf-numero').value || '').replace(/\s+/g, '');
-                document.getElementById('mf-error-alert').classList.add('hidden');
-
-                if (nomclient.length < 2) { mfError('Veuillez saisir le nom du payeur.'); return; }
-                if (!/^[\d+\-()]{8,20}$/.test(numeroSend)) { mfError('Numéro Mobile Money invalide.'); return; }
-
-                const btn = document.getElementById('btn-mf-simulate');
-                const original = btn.innerHTML;
-                btn.disabled = true;
-                btn.innerHTML = '<span class="inline-block animate-spin mr-2">⏳</span>Création de la commande...';
-
-                try {
-                    const notesRaw = (document.getElementById('order-notes').value || '').trim().slice(0, NOTES_MAX);
-                    orderData.serviceType = currentServiceType;
-                    orderData.notes = sanitize(notesRaw);
-                    orderData.paymentMethod = 'moneyfusion';
-
-                    let resp = await fetch('{{ route('orders.store') }}', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrfToken() },
-                        body: JSON.stringify(orderData)
-                    });
-                    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-                    let created = await resp.json();
-                    if (!created.success) throw new Error(created.message || 'Commande refusée');
-
-                    orderData.orderId = created.order_id;
-                    if (created.subtotal !== undefined) orderData.subtotal = created.subtotal;
-                    if (created.service_fee !== undefined) orderData.serviceFee = created.service_fee;
-                    if (created.delivery_fee !== undefined) orderData.deliveryFee = created.delivery_fee;
-                    if (created.total !== undefined) orderData.total = created.total;
-                    await saveOrderToIndexedDB(created.order_id, orderData.total);
-                    localStorage.removeItem('restaurantCart');
-
-                    btn.innerHTML = '<span class="inline-block animate-spin mr-2">⏳</span>Simulation du paiement...';
-                    resp = await fetch(`${ORDERS_BASE_URL}/${created.order_id}/moneyfusion/simulate`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrfToken() }
-                    });
-                    const result = await resp.json();
-                    if (!result.success) throw new Error(result.message || 'Simulation refusée');
-
-                    showPaymentSuccess();
-                } catch (err) {
-                    console.error(err);
-                    mfError(err.message || 'Erreur en mode TEST.');
+                    mfError(err.message || 'Erreur lors du paiement.');
                     btn.disabled = false;
                     btn.innerHTML = original;
                 }
             }
 
             function showWaitingStep() {
-                if (!orderData.orderId) {
-                    // Garde-fou : sans commande, retour au paiement au lieu d'un polling en échec
-                    document.getElementById('step-waiting').classList.add('hidden');
-                    document.getElementById('step-payment').classList.remove('hidden');
-                    updateStepper(2);
-                    return;
-                }
                 document.getElementById('step-payment').classList.add('hidden');
                 document.getElementById('step-details').classList.add('hidden');
                 document.getElementById('step-service-type').classList.add('hidden');
@@ -985,7 +876,7 @@
 
                 updateStepper(3);
                 startPolling();
-                if (window.lucide) lucide.createIcons();
+                lucide.createIcons();
             }
 
             function startPolling() {
@@ -1014,12 +905,6 @@
                     if (result.paid) {
                         stopPolling();
                         showPaymentSuccess();
-                    } else if (result.success === false) {
-                        // Paiement non initié / commande introuvable : stopper le polling
-                        // et guider vers annulation + recommencement (panier restauré)
-                        stopPolling();
-                        errEl.textContent = (result.message || 'Paiement non initié pour cette commande.') + ' Annulez la commande pour recommencer.';
-                        errEl.classList.remove('hidden');
                     } else if (result.status && !['pending', ''].includes(String(result.status))) {
                         errEl.textContent = 'Paiement : ' + result.status + '. Réessayez ou annulez la commande.';
                         errEl.classList.remove('hidden');
@@ -1040,14 +925,8 @@
                 localStorage.removeItem('paiement_en_cours');
                 localStorage.removeItem('lastOrder');
 
-                // Masquer TOUTES les étapes (simulation : on vient de step-payment,
-                // paiement réel : on vient de step-waiting)
-                document.getElementById('step-service-type').classList.add('hidden');
-                document.getElementById('step-details').classList.add('hidden');
-                document.getElementById('step-payment').classList.add('hidden');
                 document.getElementById('step-waiting').classList.add('hidden');
                 document.getElementById('step-success').classList.remove('hidden');
-                window.scrollTo({ top: 0, behavior: 'smooth' });
 
                 const trackBtn = document.getElementById('btn-track-order');
                 if (trackBtn) trackBtn.href = `{{ route('track') }}?id=${orderData.orderId}`;
@@ -1080,7 +959,7 @@
                 }
 
                 showToast('Paiement confirmé ! Merci de votre confiance.');
-                if (window.lucide) lucide.createIcons();
+                lucide.createIcons();
             }
 
             function backToDetails() {
@@ -1142,103 +1021,95 @@
                 return amt.toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ") + ' F';
             }
 
-            function htmlDecode(s) {
-                const d = document.createElement('textarea');
-                d.innerHTML = s ?? '';
-                return d.value;
-            }
-
-            // Reçu pro format ticket 80 mm : N° commande, client, articles
-            // alignés, totaux détaillés, pastille PAYÉ, contact WhatsApp.
             function downloadReceipt() {
-                if (!window.jspdf) { alert("Générateur PDF indisponible, réessayez après rechargement."); return; }
                 const { jsPDF } = window.jspdf;
-                const W = 80, M = 8, R = W - M;
-                const doc = new jsPDF({ unit: 'mm', format: [W, 220] });
+                const doc = new jsPDF();
 
-                const NAVY = [19, 41, 63], GRAY = [110, 110, 110], GREEN = [22, 163, 74];
-                let y = 11;
+                // Header: Dark Bar
+                doc.setFillColor(15, 23, 42);
+                doc.rect(0, 0, 210, 40, 'F');
 
-                const center = (t, size, style, color) => {
-                    doc.setFontSize(size); doc.setFont('helvetica', style || 'normal');
-                    const c = color || [0, 0, 0]; doc.setTextColor(c[0], c[1], c[2]);
-                    doc.text(t, W / 2, y, { align: 'center' });
-                };
-                const dashed = (gap) => {
-                    doc.setDrawColor(180, 180, 180); doc.setLineDashPattern([1, 1], 0);
-                    doc.line(M, y, R, y); doc.setLineDashPattern([], 0); y += (gap || 5);
-                };
-                const right = (t, size, bold) => {
-                    doc.setFontSize(size); doc.setFont('helvetica', bold ? 'bold' : 'normal');
-                    doc.setTextColor(0, 0, 0); doc.text(t, R, y, { align: 'right' });
-                };
+                doc.setTextColor(255, 255, 255);
+                doc.setFontSize(26);
+                doc.setFont('helvetica', 'bold');
+                doc.text('OPERA RESTO', 105, 22, { align: 'center' });
 
-                // En-tête
-                center('OPERA RESTO', 15, 'bold', NAVY); y += 6;
-                center('Restaurant - Lome', 9, 'normal', GRAY); y += 4;
-                center('WhatsApp : 228 99 21 55 80', 9, 'normal', GRAY); y += 6;
-                dashed();
-
-                // Titre + statut
-                center('RECU N° ' + orderData.orderId, 12, 'bold'); y += 5;
-                center(new Date().toLocaleString('fr-FR'), 9, 'normal', GRAY); y += 6;
-                doc.setFillColor(GREEN[0], GREEN[1], GREEN[2]);
-                doc.roundedRect(W / 2 - 14, y - 4.5, 28, 8, 2, 2, 'F');
-                doc.setTextColor(255, 255, 255); doc.setFontSize(11); doc.setFont('helvetica', 'bold');
-                doc.text('PAYE', W / 2, y + 1.5, { align: 'center' }); y += 9;
-                dashed();
-
-                // Client
-                doc.setFontSize(9); doc.setFont('helvetica', 'normal'); doc.setTextColor(0, 0, 0);
-                const infoLines = [
-                    'Client : ' + htmlDecode(orderData.name || '-'),
-                    'Tel : ' + htmlDecode(orderData.phone || '-'),
-                    'Service : ' + String(currentServiceType || '').toUpperCase(),
-                ];
-                if (orderData.neighborhood) infoLines.push('Quartier : ' + htmlDecode(orderData.neighborhood));
-                infoLines.push('Paiement : MoneyFusion');
-                infoLines.forEach(t => {
-                    doc.text(doc.splitTextToSize(t, R - M), M, y);
-                    y += 4;
-                });
-                y += 1; dashed();
-
-                // Articles
-                orderData.items.forEach(item => {
-                    doc.setFontSize(10); doc.setFont('helvetica', 'bold'); doc.setTextColor(0, 0, 0);
-                    doc.text(doc.splitTextToSize(item.quantity + ' x ' + htmlDecode(item.name), R - M), M, y);
-                    y += 4;
-                    const opts = (item.selectedOptions || []).map(o => htmlDecode(typeof o === 'object' ? o.name : o)).join(', ');
-                    if (opts) {
-                        doc.setFontSize(8); doc.setFont('helvetica', 'italic'); doc.setTextColor(GRAY[0], GRAY[1], GRAY[2]);
-                        doc.text(doc.splitTextToSize(opts, R - M), M, y);
-                        y += 4;
-                    }
-                    right(formatAmount(item.itemPrice) + ' x ' + item.quantity + ' = ' + formatAmount(item.itemPrice * item.quantity), 9, true);
-                    y += 6;
-                    if (y > 182) { doc.addPage([W, 220]); y = 10; }
-                });
-                dashed();
-
-                // Totaux
+                doc.setFontSize(10);
                 doc.setFont('helvetica', 'normal');
-                const totLine = (label, val) => {
-                    doc.setFontSize(9); doc.setTextColor(0, 0, 0);
-                    doc.text(label, M, y); right(val, 9, false); y += 5;
-                };
-                totLine('Sous-total', formatAmount(orderData.subtotal || 0));
-                totLine('Service (10%)', formatAmount(orderData.serviceFee || 0));
-                if (orderData.deliveryFee > 0) totLine('Livraison', formatAmount(orderData.deliveryFee));
-                y += 2;
-                doc.setFontSize(13); doc.setFont('helvetica', 'bold'); doc.setTextColor(0, 0, 0);
-                doc.text('TOTAL', M, y);
-                doc.setTextColor(234, 88, 12);
-                doc.text(formatAmount(orderData.total), R, y, { align: 'right' });
-                y += 8; dashed();
-                center('Merci de votre confiance !', 10, 'bold', NAVY); y += 5;
-                center('Suivi : WhatsApp 228 99 21 55 80', 8, 'normal', GRAY);
+                doc.text('REÇU DE COMMANDE PAYÉ - MERCI DE VOTRE CONFIANCE', 105, 32, { align: 'center' });
 
-                doc.save(`recu-opera-${orderData.orderId}.pdf`);
+                // Content
+                doc.setTextColor(40, 40, 40);
+                doc.setFontSize(12);
+                doc.setFont('helvetica', 'bold');
+                doc.text('DÉTAILS DE LA TRANSACTION', 20, 55);
+
+                doc.setFont('helvetica', 'normal');
+                doc.setFontSize(10);
+                const date = new Date().toLocaleString('fr-FR');
+                doc.text(`Date : ${date}`, 20, 65);
+                doc.text(`Mode de retrait : ${currentServiceType.toUpperCase()}`, 20, 71);
+                doc.text(`Moyen de paiement : MoneyFusion`, 20, 77);
+                if (orderData.name) doc.text(`Client : ${orderData.name}`, 20, 83);
+                if (orderData.phone) doc.text(`Téléphone : ${orderData.phone}`, 20, 89);
+                if (orderData.neighborhood) doc.text(`Lieu de livraison : ${orderData.neighborhood}`, 20, 95);
+
+                // Table
+                let y = 110;
+                doc.setFillColor(245, 245, 245);
+                doc.rect(20, y, 170, 10, 'F');
+                doc.setFont('helvetica', 'bold');
+                doc.text('ARTICLE', 25, y + 7);
+                doc.text('QTÉ', 140, y + 7);
+                doc.text('TOTAL', 170, y + 7);
+
+                y += 20;
+                doc.setFont('helvetica', 'normal');
+                orderData.items.forEach(item => {
+                    const totalItem = formatAmount(item.itemPrice * item.quantity);
+                    doc.setFont('helvetica', 'bold');
+                    doc.text(`${item.name}`, 25, y);
+                    doc.text(`${item.quantity}`, 140, y);
+                    doc.text(totalItem, 170, y);
+
+                    y += 5;
+                    doc.setFontSize(8);
+                    doc.setFont('helvetica', 'italic');
+                    doc.setTextColor(120, 120, 120);
+                    const options = item.selectedOptions.map(o => (typeof o === 'object' ? o.name : o)).join(', ');
+                    const splitOptions = doc.splitTextToSize(options, 110);
+                    doc.text(splitOptions, 25, y);
+
+                    y += (splitOptions.length * 4) + 6;
+                    doc.setFontSize(10);
+                    doc.setTextColor(40, 40, 40);
+
+                    if (y > 270) { doc.addPage(); y = 20; }
+                });
+
+                // Total
+                y += 5;
+                doc.setDrawColor(200, 200, 200);
+                doc.line(120, y, 190, y);
+                y += 8;
+                doc.setFontSize(10);
+                doc.setFont('helvetica', 'normal');
+                doc.text(`Sous-total : ${formatAmount(orderData.subtotal || 0)}`, 120, y);
+                y += 6;
+                doc.text(`Frais de service (10%) : ${formatAmount(orderData.serviceFee || 0)}`, 120, y);
+                y += 6;
+                if (orderData.deliveryFee > 0) {
+                    doc.text(`Frais de livraison : ${formatAmount(orderData.deliveryFee)}`, 120, y);
+                    y += 6;
+                }
+                y += 10;
+                doc.setFontSize(14);
+                doc.setFont('helvetica', 'bold');
+                doc.text('TOTAL GÉNÉRAL (PAYÉ)', 120, y);
+                doc.setTextColor(234, 88, 12);
+                doc.text(formatAmount(orderData.total), 170, y);
+
+                doc.save(`recu-paye-opera-${Date.now()}.pdf`);
             }
         </script>
 </body>

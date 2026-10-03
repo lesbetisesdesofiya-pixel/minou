@@ -5,7 +5,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Suivre ma commande - Opera Resto</title>
-    @vite(['resources/css/app.css', 'resources/js/app.js'])
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
     <style>
         .step-active {
             color: #ff6b35;
@@ -259,7 +260,7 @@
 
             if (history.length === 0) {
                 listContainer.innerHTML = '<div class="py-12 text-center text-gray-400 italic flex flex-col items-center gap-3"><i data-lucide="package" class="w-12 h-12 opacity-20"></i> Aucune commande trouvée sur cet appareil.</div>';
-                if (window.lucide) lucide.createIcons();
+                lucide.createIcons();
                 return;
             }
 
@@ -283,12 +284,12 @@
                     </div>
                 </a>
             `).join('');
-            if (window.lucide) lucide.createIcons();
+            lucide.createIcons();
         }
 
         document.addEventListener('DOMContentLoaded', initTracking);
     </script>
-    <script>if (window.lucide) lucide.createIcons();</script>
+    <script>lucide.createIcons();</script>
 </body>
 
 </html>
