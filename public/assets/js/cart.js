@@ -1,4 +1,4 @@
-﻿// Global State
+// Global State
 let currentMenu = 'plats';
 let currentProduct = null;
 let cart = JSON.parse(localStorage.getItem('restaurantCart')) || [];
@@ -113,7 +113,7 @@ function renderMenu() {
                     : parseFloat(p.price).toLocaleString('fr-FR') + ' F'
                 }
                         </span>
-                        <span class="text-primary-500 text-sm font-medium">Voir ÔåÆ</span>
+                        <span class="text-primary-500 text-sm font-medium">Voir →</span>
                     </div>
                 </button>
             `}).join('')}
@@ -132,7 +132,7 @@ function showProductModal(product) {
 
     // Poissons logic: Check if variations exist
     if (product.category === 'Poissons' && (!product.attributes || !product.attributes.manual_variations || product.attributes.manual_variations.items.length === 0)) {
-        alert("D├®sol├®, aucun poisson n'est disponible pour le moment.");
+        alert("Désolé, aucun poisson n'est disponible pour le moment.");
         return;
     }
 
@@ -245,7 +245,7 @@ function showProductModal(product) {
     if (product.attributes && product.attributes.supplements) {
         attributesHtml.push(`
     <div class="space-y-3">
-        <h3 class="text-sm font-semibold text-gray-900 uppercase tracking-wide">Suppl├®ments</h3>
+        <h3 class="text-sm font-semibold text-gray-900 uppercase tracking-wide">Suppléments</h3>
         <div class="space-y-2">
             ${product.attributes.supplements.map(opt => `
                 <label class="flex items-center justify-between p-3 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100 smooth-transition">
@@ -429,7 +429,7 @@ function addToCart() {
             if (customOpt.required) {
                 const hasSelection = selectedOptions.some(opt => opt.optionIndex === i);
                 if (!hasSelection) {
-                    showError(`Veuillez s├®lectionner une option pour "${customOpt.title}".`);
+                    showError(`Veuillez sélectionner une option pour "${customOpt.title}".`);
                     return;
                 }
             }
@@ -447,7 +447,7 @@ function addToCart() {
 
     // Validation Parfums
     if (currentProduct.attributes && currentProduct.attributes.parfums && selectedParfums.length === 0) {
-        showError('Veuillez s├®lectionner au moins un parfum de glace.');
+        showError('Veuillez sélectionner au moins un parfum de glace.');
         return;
     }
 
@@ -494,7 +494,7 @@ function showCart() {
     document.getElementById('cartModal').classList.remove('hidden');
 }
 
-// Frais de service r├®percut├®s au client : 10%
+// Frais de service répercutés au client : 10%
 const SERVICE_FEE_RATE = 0.10;
 
 function calcFee(subtotal) {
@@ -517,14 +517,14 @@ function renderCartItems() {
                             </div>
                         </div>
                         <button onclick="removeFromCart(${index})" 
-                                class="flex-shrink-0 w-6 h-6 flex items-center justify-center rounded-full bg-red-100 text-red-500 hover:bg-red-200 transition text-xs font-bold">Ô£ò</button>
+                                class="flex-shrink-0 w-6 h-6 flex items-center justify-center rounded-full bg-red-100 text-red-500 hover:bg-red-200 transition text-xs font-bold">×</button>
                     </div>
                     <div class="flex items-center justify-between mt-3">
                         <!-- Quantity Controls -->
                         <div class="flex items-center gap-2">
                             <button onclick="updateCartQuantity(${index}, -1)"
                                     class="w-8 h-8 flex items-center justify-center rounded-full border-2 border-gray-300 text-gray-700 hover:border-primary-500 hover:text-primary-500 font-bold text-lg transition">
-                                ÔêÆ
+                                −
                             </button>
                             <span class="w-6 text-center font-semibold text-gray-900 text-sm">${item.quantity}</span>
                             <button onclick="updateCartQuantity(${index}, 1)"
@@ -545,14 +545,14 @@ function renderCartItems() {
                     <span>Frais de service (10%)</span>
                     <span>${serviceFee.toLocaleString('fr-FR')} F</span>
                 </div>
-                <p class="text-[11px] text-gray-400">Payin + retrait + service inclus ┬À Hors livraison (d├¿s 1 000 F, calcul├®e ├á l'├®tape suivante)</p>
+                <p class="text-[11px] text-gray-400">Payin + retrait + service inclus • Hors livraison (dès 1 000 F, calculée à l'étape suivante)</p>
                 <div class="flex justify-between items-center pt-2 border-t border-gray-700">
                     <span class="text-base">Total</span>
                     <span class="text-2xl font-bold">${total.toLocaleString('fr-FR')} F</span>
                 </div>
             </div>
             <button onclick="window.location.href=(typeof CHECKOUT_URL !== 'undefined' ? CHECKOUT_URL : 'checkout')" 
-                    class="w-full py-4 bg-primary-500 text-white rounded-xl font-semibold hover:bg-primary-600 transition mt-2">Valider la commande ÔåÆ</button>
+                    class="w-full py-4 bg-primary-500 text-white rounded-xl font-semibold hover:bg-primary-600 transition mt-2">Valider la commande →</button>
         </div>
     `;
 }
