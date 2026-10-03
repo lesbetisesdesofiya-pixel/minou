@@ -13,12 +13,13 @@ for i in $(seq 1 30); do
   sleep 2
 done
 
-# .env monté depuis l'hôte ; génère la clé si absente
+# .env monté depuis l'hôte ; génère la clé seulement si absente
 if [ ! -f .env ]; then
   cp .env.docker.example .env
 fi
-
-php artisan key:generate --force --no-interaction || true
+if ! grep -qE '^APP_KEY=.+' .env 2>/dev/null; then
+  php artisan key:generate --force --no-interaction
+fi
 php artisan storage:link || true
 php artisan migrate --force --no-interaction
 php artisan optimize || true
