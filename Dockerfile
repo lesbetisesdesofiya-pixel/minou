@@ -1,3 +1,12 @@
+# ─── Étape 1 : build des assets Vite (menu/checkout/track : Tailwind + JS) ───
+FROM node:20-alpine AS assets
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci --no-audit --no-fund
+COPY resources resources
+COPY vite.config.js ./
+RUN npm run build
+
 FROM php:8.2-apache
 
 # Extensions PHP requises par Laravel 12 + MySQL
@@ -21,6 +30,8 @@ RUN composer install --no-dev --no-interaction --prefer-dist --optimize-autoload
 
 # Code applicatif (le build React public/app/ est déjà commité)
 COPY . .
+# Assets Vite construits à l'étape Node (public/build ignoré par git)
+COPY --from=assets /app/public/build ./public/build
 
 RUN composer dump-autoload --optimize \
     && chown -R www-data:www-data storage bootstrap/cache \
