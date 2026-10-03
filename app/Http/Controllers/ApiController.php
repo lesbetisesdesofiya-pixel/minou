@@ -97,6 +97,32 @@ class ApiController extends Controller
         ]);
     }
 
+    // ─── GET /api/me ──────────────────────────────────────────────────────────
+    // Profil du compte connecté (le SPA en déduit le driver livreur lié)
+    public function me(Request $request)
+    {
+        $payload = $this->requireAuth($request);
+
+        $admin = Admin::with('driver')->find($payload['user_id'] ?? 0);
+        if (!$admin) {
+            return response()->json(['error' => 'Compte introuvable'], 401);
+        }
+
+        return response()->json([
+            'user_id'            => $admin->id,
+            'email'              => $admin->email,
+            'role'               => $admin->role,
+            'delivery_person_id' => $admin->delivery_person_id,
+            'driver'             => $admin->driver ? [
+                'id'         => $admin->driver->id,
+                'first_name' => $admin->driver->first_name,
+                'last_name'  => $admin->driver->last_name,
+                'phone'      => $admin->driver->phone,
+                'active'     => (bool) $admin->driver->active,
+            ] : null,
+        ]);
+    }
+
     // ─── GET /api/orders ────────────────────────────────────────────────────────
     public function listOrders(Request $request)
     {
@@ -183,8 +209,14 @@ class ApiController extends Controller
             return response()->json(['error' => 'Livreur indisponible'], 422);
         }
 
-        $rows = Order::where('id', $orderId)->update(['assigned_driver_id' => $driverId, 'status' => 'PREPARING']);
-        if (!$rows) return response()->json(['error' => 'Commande introuvable'], 404);
+        $order = Order::find($orderId);
+        if (!$order) return response()->json(['error' => 'Commande introuvable'], 404);
+
+        $order->update([
+            'assigned_driver_id' => $driverId,
+            'status'             => 'PREPARING',
+            'driver_amount'      => $order->delivery_fee ?? 0,
+        ]);
 
         return response()->json(['success' => true, 'order_id' => $orderId, 'driver_id' => $driverId]);
     }
@@ -372,7 +404,12 @@ class ApiController extends Controller
         return app(CheckoutController::class)->initiateMoneyFusion($request, $id);
     }
 
-    // ─── GET /api/orders/{id}/moneyfusion/status ─────────────────────────────
+    // ─── POST /api/orders/{id}/moneyfusion/simulate ──────────────────────────
+    // TEST UNIQUEMENT : 403 si MoneyFusion configuré
+    public function simulatePayment(Request $request, int $id)
+    {
+        return app(CheckoutController::class)->simulatePayment($request, $id);
+    }
     public function paymentStatus(Request $request, int $id)
     {
         return app(CheckoutController::class)->moneyFusionStatus($request, $id);
@@ -397,6 +434,8 @@ class ApiController extends Controller
             'service_fee'    => $order->service_fee,
             'delivery_fee'   => $order->delivery_fee,
             'total'          => $order->total_amount,
+            'driver_amount'  => $order->driver_amount,
+            'driver_paid'    => (bool) $order->driver_paid,
             'driver_first'   => $order->driver?->first_name,
             'driver_last'    => $order->driver?->last_name,
             'created_at'     => $order->created_at,
@@ -420,6 +459,44 @@ class ApiController extends Controller
         ]);
     }
 
+    // ─── GET /api/delivery/earnings?driver_id= (admin JWT) ─────────────────────
+    // Gains du livreur : il touche l'intégralité des frais de livraison
+    public function deliveryEarnings(Request $request)
+    {
+        $this->requireAuth($request);
+
+        $driverId = (int) $request->input('driver_id', 0);
+        if (!$driverId || !DeliveryPerson::find($driverId)) {
+            return response()->json(['error' => 'driver_id requis'], 400);
+        }
+
+        $base = Order::where('assigned_driver_id', $driverId)->where('status', 'delivered');
+        $earned   = (float) (clone $base)->sum('driver_amount');
+        $received = (float) (clone $base)->where('driver_paid', true)->sum('driver_amount');
+        $history  = (clone $base)->orderByDesc('created_at')->limit(50)->get(['id', 'client_name', 'neighborhood', 'total_amount', 'driver_amount', 'driver_paid', 'created_at']);
+
+        return response()->json([
+            'driver_id' => $driverId,
+            'earned'    => $earned,
+            'received'  => $received,
+            'pending'   => $earned - $received,
+            'history'   => $history,
+        ]);
+    }
+
+    // ─── POST /api/orders/{id}/driver-paid (admin JWT) ───────────────────────
+    public function driverPaid(Request $request, int $id)
+    {
+        $this->requireAuth($request);
+
+        $order = Order::find($id);
+        if (!$order) return response()->json(['error' => 'Commande introuvable'], 404);
+
+        $validated = $request->validate(['driver_paid' => 'required|boolean']);
+        $order->update(['driver_paid' => $validated['driver_paid']]);
+
+        return response()->json(['success' => true, 'order_id' => $id, 'driver_paid' => (bool) $order->fresh()->driver_paid]);
+    }
     // ─── POST /api/delivery/zones (admin JWT) ────────────────────────────────
     public function storeZone(Request $request)
     {
@@ -448,6 +525,38 @@ class ApiController extends Controller
         if (!$deleted) return response()->json(['error' => 'Zone introuvable'], 404);
 
         return response()->json(['success' => true]);
+    }
+
+    // ─── POST /mobile/webview-session ────────────────────────────────────────
+    // App mobile : échange le token API contre une vraie session web Laravel.
+    // L'app pose ensuite le cookie de session dans la WebView puis charge /admin/dashboard
+    // qui fonctionne comme après un login classique (aucune page de login dans l'app).
+    // Body : header Authorization: Bearer <token API> (aucun autre champ requis).
+    public function webviewSession(Request $request)
+    {
+        $payload = $this->requireAuth($request);
+
+        $admin = Admin::find($payload['user_id'] ?? 0);
+        if (!$admin) {
+            return response()->json(['error' => 'Compte introuvable'], 401);
+        }
+
+        // Crée la session web Laravel (mêmes clés que le login admin classique)
+        $request->session()->put([
+            'admin_id'    => $admin->id,
+            'admin_email' => $admin->email,
+            'admin_role'  => $admin->role,
+        ]);
+        $request->session()->regenerate();
+
+        return response()->json([
+            'success'        => true,
+            'session_cookie' => config('session.cookie'),
+            'session_id'     => $request->session()->getId(),
+            'cookie_path'    => config('session.path', '/'),
+            'role'           => $admin->role,
+            'start_url'      => url('/admin/dashboard'),
+        ]);
     }
 
     // ─── POST /api/payment/webhook ( MoneyFusion → nous, sans auth) ──────────
@@ -526,6 +635,45 @@ class ApiController extends Controller
         $person->update($validated);
 
         return response()->json(['success' => true, 'driver' => $person->fresh()]);
+    }
+
+    // ─── POST /api/inventory/fish (admin JWT) ─────────────────────────────────
+    public function storeFish(Request $request)
+    {
+        $this->requireAuth($request);
+
+        $validated = $request->validate([
+            'dish_id'  => 'required|integer|exists:dishes,id',
+            'name'     => 'required|string|max:100',
+            'price'    => 'required|numeric|min:0|max:1000000',
+            'stock_kg' => 'required|numeric|min:0|max:10000',
+        ]);
+
+        $dish = Dish::with('category')->find($validated['dish_id']);
+        if (!$dish || $dish->category?->nom !== 'Poissons') {
+            return response()->json(['error' => 'Plat hors catégorie Poissons'], 422);
+        }
+
+        $variation = DishVariation::create([
+            'dish_id'    => $dish->id,
+            'name'       => trim($validated['name']),
+            'price'      => $validated['price'],
+            'group_name' => 'Variations',
+            'stock_kg'   => (float) $validated['stock_kg'],
+        ]);
+
+        return response()->json(['success' => true, 'variation' => $variation->fresh()], 201);
+    }
+
+    // ─── DELETE /api/inventory/fish/{id} (admin JWT) ─────────────────────────
+    public function destroyFish(Request $request, int $id)
+    {
+        $this->requireAuth($request);
+
+        $deleted = DishVariation::where('id', $id)->delete();
+        if (!$deleted) return response()->json(['error' => 'Variation introuvable'], 404);
+
+        return response()->json(['success' => true]);
     }
 
     // ─── GET /api/admin/menu ─────────────────────────────────────────────────

@@ -27,12 +27,15 @@ Route::get('/', function () {
             'POST /api/orders',
             'POST /api/orders/{id}/cancel',
             'POST /api/orders/{id}/moneyfusion/initiate',
+            'POST /api/orders/{id}/moneyfusion/simulate (TEST, 403 si configuré)',
             'GET  /api/orders/{id}/moneyfusion/status',
             'GET  /api/orders/{id}/tracking',
             'POST /api/payment/webhook',
             'POST /api/auth/login',
+            'POST /mobile/webview-session (token API -> session WebView, voir app Android)',
         ],
         'auth_jwt' => [
+            'GET    /api/me',
             'GET    /api/orders',
             'GET    /api/orders/{id}',
             'PATCH  /api/orders/{id}/status',
@@ -61,6 +64,7 @@ Route::post('/quote', [ApiController::class, 'quote']);
 Route::post('/orders', [ApiController::class, 'storeOrder'])->middleware('throttle:20,1');
 Route::post('/orders/{id}/cancel', [ApiController::class, 'cancelOrder']);
 Route::post('/orders/{id}/moneyfusion/initiate', [ApiController::class, 'initiatePayment'])->middleware('throttle:20,1');
+Route::post('/orders/{id}/moneyfusion/simulate', [ApiController::class, 'simulatePayment']);
 Route::get('/orders/{id}/moneyfusion/status', [ApiController::class, 'paymentStatus']);
 Route::get('/orders/{id}/tracking', [ApiController::class, 'tracking']);
 
@@ -69,6 +73,9 @@ Route::post('/payment/webhook', [ApiController::class, 'paymentWebhook']);
 
 // ─── Auth admin (public, délivre le JWT — anti-brute-force) ───────────────────
 Route::post('/auth/login', [ApiController::class, 'login'])->middleware('throttle:10,1');
+
+// ─── Profil connecté (JWT requis, tous rôles) ─────────────────────────────────
+Route::get('/me', [ApiController::class, 'me']);
 
 // ─── Gestion (JWT admin requis) ──────────────────────────────────────────────
 Route::get('/admin/stats', [ApiController::class, 'adminStats']);
@@ -83,9 +90,13 @@ Route::patch('/delivery/{id}/complete', [ApiController::class, 'deliveryComplete
 Route::get('/delivery/persons', [ApiController::class, 'deliveryPersons']);
 Route::post('/delivery/persons', [ApiController::class, 'storePerson']);
 Route::patch('/delivery/persons/{id}', [ApiController::class, 'updatePerson']);
+Route::get('/delivery/earnings', [ApiController::class, 'deliveryEarnings']);
+Route::post('/orders/{id}/driver-paid', [ApiController::class, 'driverPaid']);
 Route::post('/delivery/zones', [ApiController::class, 'storeZone']);
 Route::delete('/delivery/zones/{id}', [ApiController::class, 'destroyZone']);
 Route::get('/inventory/fish', [ApiController::class, 'inventoryFish']);
+Route::post('/inventory/fish', [ApiController::class, 'storeFish']);
 Route::patch('/inventory/fish/{id}', [ApiController::class, 'updateFishStock']);
+Route::delete('/inventory/fish/{id}', [ApiController::class, 'destroyFish']);
 Route::get('/analytics/revenue', [ApiController::class, 'analyticsRevenue']);
 Route::get('/analytics/deliveries/metrics', [ApiController::class, 'analyticsDeliveryMetrics']);
