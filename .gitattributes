@@ -1,5 +1,10 @@
 * text=auto eol=lf
 
+# JS/CSS/Blade toujours en UTF-8 (un cart.js encodé UTF-16 a déjà cassé le menu en prod)
+*.js text eol=lf working-tree-encoding=UTF-8
+*.css text eol=lf working-tree-encoding=UTF-8
+*.blade.php text eol=lf working-tree-encoding=UTF-8
+
 *.blade.php diff=html
 *.css diff=css
 *.html diff=html
