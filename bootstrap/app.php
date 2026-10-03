@@ -12,10 +12,15 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        // Derrière Caddy (TLS terminé par le reverse-proxy) : faire confiance
+        // à X-Forwarded-Proto pour générer des URLs https (asset(), url()).
+        // Sans ça : Mixed Content (scripts http:// bloqués sur page https).
+        $middleware->trustProxies(at: '*');
         $middleware->validateCsrfTokens(except: [
             'orders',
             'orders/*',
             'payment/webhook',
+            'mobile/*',
             'api/*',
         ]);
         // En-têtes de sécurité sur toutes les réponses (web + API)
