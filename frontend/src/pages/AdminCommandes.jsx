@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { api, fmt } from '../api';
 import { TopBar, AdminNav, StatusBadge, NewOrderAlert } from '../components/layout';
 
@@ -100,6 +101,9 @@ export default function AdminCommandes() {
                 <div className="row">
                   <b>#OP-{o.id}</b>
                   <StatusBadge status={o.status} />
+                </div>
+                <div className="row" style={{ marginTop: 4 }}>
+                  <Link to={`/admin/commandes/${o.id}`} className="muted">🔍 Détails complets →</Link>
                 </div>
                 <div className="muted" style={{ margin: '6px 0' }}>
                   {o.client_name} • {o.client_phone}<br />{o.neighborhood || o.service_type} • {fmt(o.total_amount)}

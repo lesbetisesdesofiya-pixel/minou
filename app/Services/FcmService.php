@@ -2,6 +2,8 @@
 
 namespace App\Services;
 
+use App\Models\Order;
+
 class FcmService
 {
     private string $serviceAccountFile;
@@ -74,6 +76,7 @@ class FcmService
                 'message' => [
                     'topic' => 'admin_alerts',
                     'data'  => [
+                        'type'          => 'new_order',
                         'title'         => "Nouvelle commande #{$orderId} - {$serviceType}",
                         'body'          => "📦 {$itemsCount} article(s) • {$totalAmount} F\n👤 {$clientName} (" . ($details['phone'] ?? '-') . ")",
                         'order_id'      => (string)$orderId,
@@ -105,6 +108,68 @@ class FcmService
             return json_decode($response, true) ?? [];
         } catch (\Exception $e) {
             error_log("FCM Error: " . $e->getMessage());
+            return ['success' => false, 'error' => $e->getMessage()];
+        }
+    }
+
+    /**
+     * ALARME paiement confirmé : notification haute priorité pour l'app Android.
+     * - data.type = "paid" → l'app déclenche l'alarme sonore même verrouillée
+     * - bloc "notification" en secours (affiché par le système si l'app est tuée)
+     * - canal "alarm_channel", priorité haute, visible sur écran verrouillé
+     */
+    public function sendPaymentConfirmedNotification(Order $order): array
+    {
+        try {
+            $accessToken = $this->getAccessToken();
+            $orderId     = $order->id;
+            $total       = $order->total_amount;
+            $client      = $order->client_name ?: 'Client';
+
+            $message = [
+                'message' => [
+                    'topic' => 'admin_alerts',
+                    'notification' => [
+                        'title' => "Paiement reçu : commande #{$orderId}",
+                        'body'  => "{$total} F — {$client}",
+                    ],
+                    'android' => [
+                        'priority' => 'high',
+                        'notification' => [
+                            'channel_id'       => 'alarm_channel',
+                            'visibility'       => 'public',
+                            'default_sound'    => false,
+                            'notification_priority' => 'PRIORITY_MAX',
+                        ],
+                    ],
+                    'data' => [
+                        'type'         => 'paid',
+                        'title'        => "Paiement reçu : commande #{$orderId}",
+                        'body'         => "{$total} F — {$client} (" . ($order->client_phone ?: '-') . ')',
+                        'order_id'     => (string) $orderId,
+                        'total'        => (string) $total,
+                        'name'         => (string) $client,
+                        'service_type' => (string) ($order->service_type ?? ''),
+                        'click_action' => 'FLUTTER_NOTIFICATION_CLICK',
+                    ],
+                ],
+            ];
+
+            $ch = curl_init();
+            curl_setopt($ch, CURLOPT_URL, $this->fcmUrl);
+            curl_setopt($ch, CURLOPT_POST, true);
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                'Authorization: Bearer ' . $accessToken,
+                'Content-Type: application/json',
+            ]);
+            curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($message));
+            $response = curl_exec($ch);
+            curl_close($ch);
+
+            return json_decode($response, true) ?? [];
+        } catch (\Exception $e) {
+            error_log("FCM Alarm Error: " . $e->getMessage());
             return ['success' => false, 'error' => $e->getMessage()];
         }
     }
