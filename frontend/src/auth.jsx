@@ -38,7 +38,18 @@ export function AuthProvider({ children }) {
         setRole(data.role);
         localStorage.setItem('opera_role', data.role);
       }
-    }).catch(() => {});
+    }).catch((e) => {
+      // Token invalide/expiré (ex. lien magique périmé) : on déconnecte
+      // pour retomber sur l'écran de login au lieu de rester bloqué.
+      if (e?.response?.status === 401) {
+        localStorage.removeItem('opera_token');
+        localStorage.removeItem('opera_role');
+        localStorage.removeItem('opera_driver_id');
+        setToken('');
+        setRole('');
+        setDriverId(null);
+      }
+    });
   }, [token]);
 
   const login = async (email, password) => {
