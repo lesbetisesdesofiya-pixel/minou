@@ -41,3 +41,12 @@ cd /opt/opera && git pull && docker compose up -d --build
 - App React : https://avepozo.operatogo.net/app/#/admin/login
 - API : https://avepozo.operatogo.net/api
 - Comptes seed : `admin@opera.com` / `password` (admin), `admin2@opera.com` / `password` (livreur)
+
+## 6. App Android "Opéra Admin" (dossier Opera/)
+- Code : `Opera/` (Compose + WebView + FCM). `google-services.json` déjà inclus.
+- Ouvrir `Opera/` dans Android Studio → laisser Gradle synchroniser → Run sur tablette/téléphone cuisine.
+- 1er lancement : écran Setup → email + password admin → token stocké chiffré (plus jamais demandé).
+- L'app surveille les commandes (FCM push + polling secours 20 s), sonne + affiche l'écran Alerte (design),
+  Accepter/Refuser appelle l'API puis ouvre le détail dans la WebView
+  (`/app/#/admin/commandes/:id?token=...`, sans login).
+- Recette : passer une commande test sur le site → alarme en < 30 s → Accepter → détail affiché.
