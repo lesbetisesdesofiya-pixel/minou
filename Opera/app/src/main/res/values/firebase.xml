@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Valeurs Firebase (équivalent de ce que génère le plugin google-services,
+     qui ne résout pas dans cet environnement). Projet mobile-alert-app-f9a2b7,
+     app Android com.example.opera. -->
+<resources>
+    <string name="google_app_id" translatable="false">1:755017140652:android:7aebda1df156f148475209</string>
+    <string name="gcm_defaultSenderId" translatable="false">755017140652</string>
+    <string name="google_api_key" translatable="false">AIzaSyAjRp28qwRDR7jwhkaCZGBDNMcL3eR4knc</string>
+    <string name="project_id" translatable="false">mobile-alert-app-f9a2b7</string>
+    <string name="google_storage_bucket" translatable="false">mobile-alert-app-f9a2b7.firebasestorage.app</string>
+</resources>
