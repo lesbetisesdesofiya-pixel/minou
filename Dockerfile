@@ -28,7 +28,7 @@ WORKDIR /var/www/html
 COPY composer.json composer.lock ./
 RUN composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader --no-scripts
 
-# Code applicatif (le build React public/app/ est déjà commité)
+# Code applicatif (admin : app Expo "Opéra Admin", dossier myopera/ — plus de SPA web)
 COPY . .
 # Assets Vite construits à l'étape Node (public/build ignoré par git)
 COPY --from=assets /app/public/build ./public/build

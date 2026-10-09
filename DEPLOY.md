@@ -33,13 +33,13 @@ sudo certbot --nginx -d avepozo.operatogo.net
 ## 5. Mises à jour suivantes
 ```bash
 cd /opt/opera && git pull && docker compose up -d --build
-# Rebuild du React si frontend/ modifié :
-#   (en local) cd frontend && npm run build, commit de public/app, push, puis git pull + rebuild sur le VPS
 ```
 
 ## URLs prod
-- App React : https://avepozo.operatogo.net/app/#/admin/login
+- Site client : https://avepozo.operatogo.net/ (menu, checkout, suivi)
 - API : https://avepozo.operatogo.net/api
+- Admin : app Expo "Opéra Admin" (dossier myopera/) — plus de pages admin web.
+  Lancer : `cd myopera && npx expo start` (dev) ou build EAS (`npx eas-cli@latest build -p android`).
 - Comptes seed : `admin@opera.com` / `password` (admin), `admin2@opera.com` / `password` (livreur)
 
 ## 6. App Android "Opéra Admin" (dossier Opera/)

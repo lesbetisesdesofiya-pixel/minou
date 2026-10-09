@@ -25,12 +25,7 @@ Route::post('/mobile/webview-session', [ApiController::class, 'webviewSession'])
     ->middleware('throttle:10,1')
     ->name('mobile.webview_session');
 
-// ─── SPA React Admin & Livreurs (build frontend/ -> public/app) ──────────────
-// Les vues Blade admin/staff ont été remplacées par le build React (100% API).
-// HashRouter => aucune réécriture serveur nécessaire, mais on redirige les
-// anciennes URLs Blade vers le SPA pour ne rien casser.
-Route::redirect('/admin-login', '/app/#/admin/login', 301);
-Route::redirect('/admin/dashboard', '/app/#/admin/commandes', 301);
-Route::redirect('/staff/login', '/app/#/livreur/login', 301);
-Route::redirect('/staff', '/app/#/livreur/commandes', 301);
+// Note : l'administration web (ex-SPA React /app + Blade admin/staff) est
+// supprimée — l'admin vit dans l'app Expo "Opéra Admin" (dossier myopera/).
+// Les anciennes URLs /admin-login, /admin/dashboard, /staff* répondent 404.
 
