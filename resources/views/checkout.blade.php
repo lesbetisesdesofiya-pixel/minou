@@ -136,7 +136,7 @@
                     <span class="w-7 h-7 rounded-full bg-primary-500 text-white flex items-center justify-center font-bold text-sm shadow-md ring-4 ring-primary-100">1</span>
                     <span>Client</span>
                 </div>
-                <div id="step-dot-2" class="flex flex-col items-center gap-1.5 bg-slate-50 px-2">
+                <div id="step-dot-2" @if($paymentDisabled ?? false)style="display:none"@endif class="flex flex-col items-center gap-1.5 bg-slate-50 px-2">
                     <span id="step-badge-2" class="w-7 h-7 rounded-full bg-slate-200 text-slate-600 flex items-center justify-center font-bold text-sm">2</span>
                     <span>Paiement</span>
                 </div>
@@ -316,7 +316,7 @@
                 <div class="space-y-3">
                     <button type="submit"
                         class="w-full py-4 bg-primary-500 text-white rounded-2xl font-bold hover:bg-primary-600 smooth-transition shadow-lg shadow-primary-500/10 flex items-center justify-center gap-2">
-                        <span>Passer à l'étape suivante (Paiement)</span>
+                        @if($paymentDisabled ?? false)<span>Valider la commande</span>@else<span>Passer à l'étape suivante (Paiement)</span>@endif
                         <i data-lucide="arrow-right" class="w-5 h-5"></i>
                     </button>
                     <button type="button" onclick="backToServiceType()"
@@ -407,8 +407,8 @@
                 <div class="w-20 h-20 bg-green-50 rounded-full flex items-center justify-center mx-auto mb-6 shadow-inner text-green-500">
                     <i data-lucide="badge-check" class="w-12 h-12"></i>
                 </div>
-                <h2 class="text-2xl md:text-3xl font-extrabold text-slate-900 mb-2">Commande payée et confirmée !</h2>
-                <p class="text-slate-500 mb-8 max-w-sm mx-auto">Votre paiement MoneyFusion a été confirmé. Notre équipe commence la préparation.</p>
+                <h2 id="success-title" class="text-2xl md:text-3xl font-extrabold text-slate-900 mb-2">Commande payée et confirmée !</h2>
+                <p id="success-sub" class="text-slate-500 mb-8 max-w-sm mx-auto">Votre paiement MoneyFusion a été confirmé. Notre équipe commence la préparation.</p>
 
                 <!-- Order Details Summary -->
                 <div id="order-summary-success"
@@ -466,6 +466,8 @@
 
         <script>
             const ORDERS_BASE_URL = "{{ url('orders') }}";
+            // Paiement désactivé : la commande est validée directement (sans MoneyFusion)
+            const PAYMENT_DISABLED = {{ ($paymentDisabled ?? false) ? 'true' : 'false' }};
             // Frais de service : 10% (le serveur recalcule et fait foi)
             const SERVICE_FEE_RATE = {{ (float) config('services.moneyfusion.fee_rate', 0.10) }};
             function calcFee(subtotal) { return Math.round(subtotal * SERVICE_FEE_RATE); }
@@ -761,6 +763,12 @@
 
                 if (!valid) return;
 
+                // Paiement désactivé : validation directe, sans étape MoneyFusion
+                if (typeof PAYMENT_DISABLED !== 'undefined' && PAYMENT_DISABLED) {
+                    submitOrderDirect();
+                    return;
+                }
+
                 // Transition vers le paiement MoneyFusion (pré-remplissage)
                 document.getElementById('step-details').classList.add('hidden');
                 document.getElementById('step-payment').classList.remove('hidden');
@@ -794,6 +802,51 @@
                 const el = document.getElementById('mf-error-alert');
                 el.textContent = msg;
                 el.classList.remove('hidden');
+            }
+
+            // Paiement désactivé (PAYMENT_DISABLED) : crée la commande et affiche
+            // directement la confirmation — le serveur la passe en "Payée".
+            async function submitOrderDirect() {
+                const btn = document.querySelector('#step-details button[type="submit"]');
+                const original = btn ? btn.innerHTML : '';
+                if (btn) {
+                    btn.disabled = true;
+                    btn.innerHTML = '<span class="inline-block animate-spin mr-2">⏳</span>Envoi de la commande...';
+                }
+                try {
+                    const notesRaw = (document.getElementById('order-notes').value || '').trim().slice(0, NOTES_MAX);
+                    orderData.serviceType = currentServiceType;
+                    orderData.notes = sanitize(notesRaw);
+                    orderData.paymentMethod = 'sans_paiement';
+
+                    const resp = await fetch('{{ route('orders.store') }}', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrfToken() },
+                        body: JSON.stringify(orderData)
+                    });
+                    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+                    const created = await resp.json();
+                    if (!created.success) throw new Error(created.message || 'Commande refusée');
+
+                    orderData.orderId = created.order_id;
+                    if (created.subtotal !== undefined) orderData.subtotal = created.subtotal;
+                    if (created.service_fee !== undefined) orderData.serviceFee = created.service_fee;
+                    if (created.delivery_fee !== undefined) orderData.deliveryFee = created.delivery_fee;
+                    if (created.total !== undefined) orderData.total = created.total;
+                    await saveOrderToIndexedDB(created.order_id, orderData.total);
+
+                    localStorage.removeItem('restaurantCart');
+                    localStorage.setItem('lastOrder', JSON.stringify(orderData));
+
+                    document.getElementById('step-details').classList.add('hidden');
+                    document.getElementById('step-service-type').classList.add('hidden');
+                    updateStepper(3);
+                    showPaymentSuccess();
+                } catch (err) {
+                    console.error(err);
+                    showToast(err.message || 'Erreur lors de la commande.', false);
+                    if (btn) { btn.disabled = false; btn.innerHTML = original; }
+                }
             }
 
             async function createOrderThenPay() {
@@ -959,6 +1012,11 @@
                 }
 
                 showToast('Paiement confirmé ! Merci de votre confiance.');
+                if (typeof PAYMENT_DISABLED !== 'undefined' && PAYMENT_DISABLED) {
+                    document.getElementById('success-title').textContent = 'Commande envoyée !';
+                    document.getElementById('success-sub').textContent = 'Notre équipe commence la préparation. Paiement au restaurant.';
+                    showToast('Commande envoyée ! Merci de votre confiance.');
+                }
                 lucide.createIcons();
             }
 
@@ -1049,7 +1107,7 @@
                 const date = new Date().toLocaleString('fr-FR');
                 doc.text(`Date : ${date}`, 20, 65);
                 doc.text(`Mode de retrait : ${currentServiceType.toUpperCase()}`, 20, 71);
-                doc.text(`Moyen de paiement : MoneyFusion`, 20, 77);
+                doc.text(`Moyen de paiement : ${(typeof PAYMENT_DISABLED !== 'undefined' && PAYMENT_DISABLED) ? 'Comptant (au restaurant)' : 'MoneyFusion'}`, 20, 77);
                 if (orderData.name) doc.text(`Client : ${orderData.name}`, 20, 83);
                 if (orderData.phone) doc.text(`Téléphone : ${orderData.phone}`, 20, 89);
                 if (orderData.neighborhood) doc.text(`Lieu de livraison : ${orderData.neighborhood}`, 20, 95);

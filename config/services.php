@@ -37,6 +37,10 @@ return [
 
     'moneyfusion' => [
         'api_url' => env('MONEYFUSION_API_URL'),
+        // Paiement désactivé temporairement : les commandes passent directement
+        // en "Payée" (paiement au restaurant), sans redirection MoneyFusion.
+        // Réactiver : PAYMENT_DISABLED=false dans .env
+        'disabled' => (bool) env('PAYMENT_DISABLED', true),
         'status_url' => env('MONEYFUSION_STATUS_URL', 'https://pay.moneyfusion.net/paiementNotif'),
         // Frais de service répercutés au client : 10% (payin + retrait + service)
         'fee_rate' => (float) env('MONEYFUSION_FEE_RATE', 0.10),

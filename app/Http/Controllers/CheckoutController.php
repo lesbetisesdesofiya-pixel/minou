@@ -18,8 +18,12 @@ class CheckoutController extends Controller
     public function index()
     {
         return view('checkout', [
-            'deliveryZones'      => $this->deliveryZonesMap(),
-            'deliveryDefaultFee' => config('delivery.default', 1000),
+            'deliveryZones'         => $this->deliveryZonesMap(),
+            'deliveryDefaultFee'    => config('delivery.default', 1000),
+            // Paiement désactivé : le checkout valide la commande directement
+            'paymentDisabled'       => (bool) config('services.moneyfusion.disabled'),
+            // Mode TEST : MoneyFusion non configuré → parcours de simulation direct
+            'moneyfusionConfigured' => (bool) config('services.moneyfusion.api_url'),
         ]);
     }
 
@@ -113,6 +117,19 @@ class CheckoutController extends Controller
         } catch (\Throwable $e) {
             DB::rollBack();
             return response()->json(['success' => false, 'message' => 'Erreur lors de l\'annulation: ' . $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Déclenche l'alarme FCM "paiement confirmé" (app Android, même verrouillée).
+     * N'échoue jamais le flux : toute erreur est loggée côté serveur.
+     */
+    private function firePaidAlarm(Order $order): void
+    {
+        try {
+            (new \App\Services\FcmService())->sendPaymentConfirmedNotification($order->fresh());
+        } catch (\Throwable $e) {
+            Log::error('Paid alarm error: ' . $e->getMessage());
         }
     }
 
@@ -235,6 +252,7 @@ class CheckoutController extends Controller
                     'moneyfusion_status'    => 'paid',
                     'transaction_reference' => $data['numeroTransaction'] ?? $order->payment_token,
                 ]);
+                $this->firePaidAlarm($order);
 
                 return response()->json(['success' => true, 'paid' => true, 'status' => 'paid', 'order' => $order->fresh()]);
             }
@@ -271,6 +289,7 @@ class CheckoutController extends Controller
                         'moneyfusion_status'    => 'paid',
                         'transaction_reference' => $data['numeroTransaction'] ?? $order->payment_token,
                     ]);
+                    $this->firePaidAlarm($order);
                 }
             } catch (\Throwable $e) {
                 Log::error("MoneyFusion callback check error: " . $e->getMessage());
@@ -282,6 +301,51 @@ class CheckoutController extends Controller
         }
 
         return redirect()->route('menu');
+    }
+
+    /**
+     * SIMULATION (TEST UNIQUEMENT) : marquer une commande comme payée sans MoneyFusion.
+     * Actif SEULEMENT si MONEYFUSION_API_URL est vide. Dès que la vraie URL
+     * est renseignée, cet endpoint répond 403 — aucun risque en production.
+     * POST /orders/{id}/moneyfusion/simulate
+     */
+    public function simulatePayment(Request $request, $id)
+    {
+        if (config('services.moneyfusion.api_url')) {
+            return response()->json(['success' => false, 'message' => 'Simulation désactivée : MoneyFusion est configuré.'], 403);
+        }
+
+        $order = Order::find($id);
+        if (!$order) {
+            return response()->json(['success' => false, 'message' => 'Commande introuvable'], 404);
+        }
+
+        if ($order->status === 'Payée') {
+            return response()->json(['success' => true, 'message' => 'Commande déjà payée', 'already_paid' => true, 'order' => $order->fresh()]);
+        }
+
+        if (!in_array($order->status, ['En attente de paiement', 'pending'], true)) {
+            return response()->json(['success' => false, 'message' => 'Simulation impossible à ce stade.'], 409);
+        }
+
+        $order->update([
+            'status'                => 'Payée',
+            'payment_method'        => 'moneyfusion',
+            'moneyfusion_status'    => 'simulated',
+            'transaction_reference' => 'SIM-' . strtoupper(uniqid()),
+        ]);
+        $this->firePaidAlarm($order);
+
+        return response()->json([
+            'success'      => true,
+            'simulated'    => true,
+            'message'      => 'Paiement simulé (mode TEST).',
+            'order'        => $order->fresh(),
+            'subtotal'     => $order->subtotal_amount,
+            'service_fee'  => $order->service_fee,
+            'delivery_fee' => $order->delivery_fee,
+            'total'        => $order->total_amount,
+        ]);
     }
 
     /**
@@ -346,6 +410,7 @@ class CheckoutController extends Controller
                 'moneyfusion_status'    => 'paid',
                 'transaction_reference' => $ref,
             ]);
+            $this->firePaidAlarm($order);
         } elseif ($event === 'payin.session.cancelled') {
             $order->update(['moneyfusion_status' => 'cancelled']);
         } else { // pending ou autre : simple suivi

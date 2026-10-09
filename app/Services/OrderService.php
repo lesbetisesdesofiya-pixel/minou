@@ -27,6 +27,8 @@ class OrderService
 
         DB::beginTransaction();
         try {
+            // Paiement désactivé (PAYMENT_DISABLED) : la commande passe directement en cuisine
+            $skipPayment = (bool) config('services.moneyfusion.disabled');
             $order = Order::create([
                 'service_type'          => $serviceType,
                 'client_name'           => $data['name']          ?? null,
@@ -38,8 +40,8 @@ class OrderService
                 'service_fee'           => $quote['service_fee'],
                 'delivery_fee'          => $quote['delivery_fee'],
                 'total_amount'          => $quote['total'],
-                'status'                => 'En attente de paiement',
-                'payment_method'        => $data['paymentMethod'] ?? null,
+                'status'                => $skipPayment ? 'Payée' : 'En attente de paiement',
+                'payment_method'        => $skipPayment ? 'sans_paiement' : ($data['paymentMethod'] ?? null),
                 'transaction_reference' => $data['transactionReference'] ?? null,
             ]);
 
