@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { View, Text, TextInput, Pressable, ScrollView } from 'react-native';
+import { Lock } from 'lucide-react-native';
 import { router } from 'expo-router';
 import { useAuth } from '../lib/auth';
 import { ui, C } from '../lib/ui';
@@ -50,7 +51,10 @@ export default function Login() {
         <Pressable style={ui.btnNavy} disabled={busy} onPress={submit}>
           <Text style={ui.btnText}>{busy ? 'Connexion…' : 'Se connecter'}</Text>
         </Pressable>
-        <Text style={[ui.subtitle, { marginTop: 10 }]}>🔒 Token stocké chiffré (SecureStore)</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10 }}>
+          <Lock color={C.muted} size={14} />
+          <Text style={ui.subtitle}>Token stocké chiffré (SecureStore)</Text>
+        </View>
       </View>
     </ScrollView>
   );

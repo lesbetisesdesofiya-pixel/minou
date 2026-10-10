@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { View, Text, ScrollView, Pressable, RefreshControl, TextInput, Modal } from 'react-native';
+import { RefreshCw, Search } from 'lucide-react-native';
 import { api, fmt, UnauthorizedError } from '../../lib/api';
 import { useAuth } from '../../lib/auth';
 import { ui, C } from '../../lib/ui';
@@ -104,7 +105,10 @@ export default function Carte() {
               <View style={ui.stat}><Text style={ui.statNum}>{dishes.filter((d) => d.active).length}</Text><Text style={ui.statLbl}>Actifs</Text></View>
               <View style={ui.stat}><Text style={ui.statNum}>{dishes.filter((d) => !d.active).length}</Text><Text style={ui.statLbl}>Masqués</Text></View>
             </View>
-            <TextInput style={ui.input} placeholder="🔍 Rechercher un plat…" value={q} onChangeText={setQ} />
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderColor: '#CBD5E1', borderRadius: 8, paddingHorizontal: 14, height: 48 }}>
+              <Search color={C.muted} size={16} />
+              <TextInput style={{ flex: 1, fontSize: 15, color: C.navy }} placeholder="Rechercher un plat…" value={q} onChangeText={setQ} />
+            </View>
             {filtered.map((d) => (
               <View style={ui.card} key={d.id}>
                 <View style={ui.row}>
@@ -121,7 +125,12 @@ export default function Carte() {
                 </Pressable>
               </View>
             ))}
-            <View style={ui.card}><Text style={ui.subtitle}>🔄 Toute activation / désactivation est immédiate sur le menu client.</Text></View>
+            <View style={ui.card}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <RefreshCw color={C.muted} size={14} />
+                <Text style={ui.subtitle}>Toute activation / désactivation est immédiate sur le menu client.</Text>
+              </View>
+            </View>
           </>
         ) : (
           <>

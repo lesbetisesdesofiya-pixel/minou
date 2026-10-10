@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { View, Text, ScrollView, Pressable, RefreshControl, TextInput, Modal, Linking } from 'react-native';
+import { Phone, Search } from 'lucide-react-native';
 import { api, UnauthorizedError } from '../../lib/api';
 import { useAuth } from '../../lib/auth';
 import { ui, C } from '../../lib/ui';
@@ -88,7 +89,10 @@ export default function Livreurs() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} />}
       >
         {!!err && <Text style={ui.err}>{err}</Text>}
-        <TextInput style={ui.input} placeholder="🔍 Rechercher un livreur…" value={q} onChangeText={setQ} />
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderColor: '#CBD5E1', borderRadius: 8, paddingHorizontal: 14, height: 48 }}>
+          <Search color={C.muted} size={16} />
+          <TextInput style={{ flex: 1, fontSize: 15, color: C.navy }} placeholder="Rechercher un livreur…" value={q} onChangeText={setQ} />
+        </View>
         <ScrollView horizontal showsHorizontalScrollIndicator={false}>
           {[['all', 'Tous'], ['active', 'Disponibles'], ['paused', 'En pause'], ['suspended', 'Suspendus']].map(([k, l]) => (
             <Pressable key={k} style={[ui.chip, filter === k && ui.chipActive]} onPress={() => setFilter(k)}>
@@ -122,7 +126,7 @@ export default function Livreurs() {
             <View style={[ui.row, { marginTop: 10 }]}>
               {!!d.phone && (
                 <Pressable style={[ui.btnGhost, ui.btnSm]} onPress={() => Linking.openURL(`tel:${d.phone}`)}>
-                  <Text style={ui.btnTextDark}>📞</Text>
+                  <Phone color={C.navy} size={16} />
                 </Pressable>
               )}
               <Pressable style={[ui.btnGhost, ui.btnSm, { flex: 1 }]} onPress={() => toggleActive(d)}>

@@ -1,9 +1,8 @@
 import { Tabs, Redirect } from 'expo-router';
-import { Text, View, ActivityIndicator } from 'react-native';
+import { View, ActivityIndicator } from 'react-native';
+import { Receipt, UtensilsCrossed, Bike, ChartColumn } from 'lucide-react-native';
 import { useAuth } from '../../lib/auth';
 import { C } from '../../lib/ui';
-
-const Ico = ({ c }: { c: string }) => <Text style={{ fontSize: 22 }}>{c}</Text>;
 
 export default function AdminLayout() {
   const { token, role, ready } = useAuth();
@@ -27,21 +26,20 @@ export default function AdminLayout() {
     >
       <Tabs.Screen
         name="commandes"
-        options={{ title: 'Commandes', tabBarIcon: () => <Ico c="🧾" /> }}
+        options={{ title: 'Commandes', tabBarIcon: ({ color, size }) => <Receipt color={color} size={size} /> }}
       />
       <Tabs.Screen
         name="carte"
-        options={{ title: 'Menu & Stock', tabBarIcon: () => <Ico c="🍽️" /> }}
+        options={{ title: 'Menu & Stock', tabBarIcon: ({ color, size }) => <UtensilsCrossed color={color} size={size} /> }}
       />
       <Tabs.Screen
         name="livreurs"
-        options={{ title: 'Livreurs', tabBarIcon: () => <Ico c="🛵" /> }}
+        options={{ title: 'Livreurs', tabBarIcon: ({ color, size }) => <Bike color={color} size={size} /> }}
       />
       <Tabs.Screen
         name="rapports"
-        options={{ title: 'Rapports', tabBarIcon: () => <Ico c="📊" /> }}
+        options={{ title: 'Rapports', tabBarIcon: ({ color, size }) => <ChartColumn color={color} size={size} /> }}
       />
-      <Tabs.Screen name="commande" options={{ href: null, title: 'Détail' }} />
     </Tabs>
   );
 }

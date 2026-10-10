@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { View, Text, ScrollView, Pressable, RefreshControl } from 'react-native';
+import { Bike, MapPin, ReceiptText, User, Zap } from 'lucide-react-native';
 import { router, useLocalSearchParams, Stack } from 'expo-router';
 import { api, fmt, UnauthorizedError } from '../../../lib/api';
 import { useAuth } from '../../../lib/auth';
@@ -102,18 +103,33 @@ export default function CommandeDetail() {
         </View>
 
         <View style={ui.card}>
-          <Text style={{ fontWeight: '800', color: C.navy }}>👤 Client</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <User color={C.navy} size={16} />
+            <Text style={{ fontWeight: '800', color: C.navy }}>Client</Text>
+          </View>
           <Text style={[ui.subtitle, { marginTop: 6 }]}>
-            {order.client_name} • {order.client_phone}{'\n'}📍 {order.neighborhood || '—'}
-            {order.table_number ? ` • Table ${order.table_number}` : ''}
+            {order.client_name} • {order.client_phone}{'\n'}
           </Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+            <MapPin color={C.muted} size={14} />
+            <Text style={ui.subtitle}>
+              {order.neighborhood || '—'}
+              {order.table_number ? ` • Table ${order.table_number}` : ''}
+            </Text>
+          </View>
           {(order.driver_first || order.driver) && (
-            <Text style={ui.subtitle}>🛵 {order.driver_first || order.driver?.first_name} {order.driver_last || order.driver?.last_name || ''}</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 }}>
+              <Bike color={C.muted} size={14} />
+              <Text style={ui.subtitle}>{order.driver_first || order.driver?.first_name} {order.driver_last || order.driver?.last_name || ''}</Text>
+            </View>
           )}
         </View>
 
         <View style={ui.card}>
-          <Text style={{ fontWeight: '800', color: C.navy }}>🧾 Articles ({items.length})</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <ReceiptText color={C.navy} size={16} />
+            <Text style={{ fontWeight: '800', color: C.navy }}>Articles ({items.length})</Text>
+          </View>
           {items.map((it, i) => (
             <View key={i} style={[ui.row, { paddingVertical: 6 }]}>
               <View style={{ flex: 1 }}>
@@ -127,7 +143,10 @@ export default function CommandeDetail() {
         </View>
 
         <View style={ui.card}>
-          <Text style={{ fontWeight: '800', color: C.navy }}>⚡ Actions</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <Zap color={C.navy} size={16} />
+            <Text style={{ fontWeight: '800', color: C.navy }}>Actions</Text>
+          </View>
           <View style={[ui.row, { marginTop: 8 }]}>
             <Pressable style={[ui.btnOrange, ui.btnSm, { flex: 1 }]} onPress={() => setStatus('PREPARING')}>
               <Text style={ui.btnText}>Accepter</Text>
@@ -147,7 +166,10 @@ export default function CommandeDetail() {
         </View>
 
         <View style={ui.card}>
-          <Text style={{ fontWeight: '800', color: C.navy }}>🛵 Livreur</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <Bike color={C.navy} size={16} />
+            <Text style={{ fontWeight: '800', color: C.navy }}>Livreur</Text>
+          </View>
           <Pressable style={[ui.btnGhost, { marginTop: 8 }]} onPress={() => setShowDrivers(!showDrivers)}>
             <Text style={ui.btnTextDark}>
               {driverSel ? `Assigné : ${activeDrivers.find((d) => String(d.id) === driverSel)?.first_name || driverSel} (changer)` : '— Assigner un livreur —'}

@@ -1,5 +1,6 @@
 import { View, Text, Pressable } from 'react-native';
 import type { TextStyle, ViewStyle } from 'react-native';
+import { LogOut } from 'lucide-react-native';
 import { router } from 'expo-router';
 import { useAuth } from '../lib/auth';
 import { ui, C } from '../lib/ui';
@@ -30,7 +31,7 @@ export function TopBar({ title, subtitle, live, right }: { title: string; subtit
           router.replace('/login');
         }}
       >
-        <Text style={ui.btnTextDark}>⏻</Text>
+        <LogOut color={C.navy} size={18} />
       </Pressable>
     </View>
   );

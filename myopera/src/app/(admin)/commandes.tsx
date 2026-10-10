@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { View, Text, ScrollView, Pressable, Modal, RefreshControl } from 'react-native';
+import { BellRing, Bike, Search } from 'lucide-react-native';
 import { router } from 'expo-router';
 import { api, fmt, UnauthorizedError } from '../../lib/api';
 import { useAuth } from '../../lib/auth';
@@ -116,12 +117,20 @@ export default function Commandes() {
                 <StatusBadge status={o.status} />
               </View>
               <Pressable onPress={() => router.push({ pathname: '/(admin)/commande/[id]', params: { id: String(o.id) } })}>
-                <Text style={[ui.link, { marginTop: 4 }]}>🔍 Détails complets →</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 }}>
+                  <Search color={C.orange} size={14} />
+                  <Text style={ui.link}>Détails complets</Text>
+                </View>
               </Pressable>
               <Text style={[ui.subtitle, { marginVertical: 6 }]}>
                 {o.client_name} • {o.client_phone}{'\n'}{o.neighborhood || o.service_type} • {fmt(o.total_amount)}
               </Text>
-              {!!o.driver_first && <Text style={ui.subtitle}>🛵 {o.driver_first} {o.driver_last}</Text>}
+              {!!o.driver_first && (
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                  <Bike color={C.muted} size={14} />
+                  <Text style={ui.subtitle}>{o.driver_first} {o.driver_last}</Text>
+                </View>
+              )}
               <View style={[ui.row, { marginTop: 10 }]}>
                 {(o.status === 'pending' || o.status === 'En attente de paiement' || o.status === 'Payée') && (
                   <>
@@ -152,8 +161,8 @@ export default function Commandes() {
       <Modal visible={!!alertOrder} transparent animationType="slide" onRequestClose={() => setAlertOrder(null)}>
         <View style={{ flex: 1, backgroundColor: 'rgba(2,6,23,0.7)', justifyContent: 'center', padding: 20 }}>
           <View style={{ backgroundColor: '#fff', borderRadius: 24, overflow: 'hidden' }}>
-            <View style={{ backgroundColor: C.orange, padding: 20, alignItems: 'center' }}>
-              <Text style={{ fontSize: 34 }}>🔔</Text>
+            <View style={{ backgroundColor: C.orange, padding: 20, alignItems: 'center', gap: 4 }}>
+              <BellRing color="#fff" size={34} />
               <Text style={{ color: '#fff', fontWeight: '800', fontSize: 20 }}>Nouvelle commande !</Text>
               <Text style={{ color: '#fff', fontWeight: '700' }}>#OP-{alertOrder?.id} • {fmt(alertOrder?.total_amount)}</Text>
             </View>
