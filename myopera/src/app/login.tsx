@@ -15,7 +15,7 @@ export default function Login() {
     setErr('');
     setBusy(true);
     try {
-      const { role } = await login(email.trim(), password);
+      const { role } = await login(email.trim(), password.trim());
       if (role === 'DELIVERY') {
         await logout();
         setErr("Compte livreur : cette app est réservée à l'administration.");
@@ -43,9 +43,9 @@ export default function Login() {
         <Text style={ui.subtitle}>Gérant de salle &amp; Chef de cuisine</Text>
         {!!err && <Text style={[ui.err, { marginTop: 10 }]}>{err}</Text>}
         <Text style={ui.label}>Email professionnel</Text>
-        <TextInput style={ui.input} value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" />
+        <TextInput style={ui.input} value={email} onChangeText={setEmail} autoCapitalize="none" autoCorrect={false} keyboardType="email-address" />
         <Text style={ui.label}>Mot de passe</Text>
-        <TextInput style={ui.input} value={password} onChangeText={setPassword} secureTextEntry />
+        <TextInput style={ui.input} value={password} onChangeText={setPassword} secureTextEntry autoCapitalize="none" autoCorrect={false} />
         <View style={{ height: 14 }} />
         <Pressable style={ui.btnNavy} disabled={busy} onPress={submit}>
           <Text style={ui.btnText}>{busy ? 'Connexion…' : 'Se connecter'}</Text>
