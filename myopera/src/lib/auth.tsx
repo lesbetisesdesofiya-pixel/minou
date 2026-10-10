@@ -1,7 +1,7 @@
 ﻿import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { Platform } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
-import { api } from './api';
+import { api, UnauthorizedError } from './api';
 
 const KEY = 'opera_token';
 
@@ -60,11 +60,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const me = await api('/me', { token: t });
       if (me?.delivery_person_id) setDriverId(Number(me.delivery_person_id));
       if (me?.role) setRole(me.role);
-    } catch {
-      await store.deleteItemAsync(KEY);
-      setToken(null);
-      setRole('');
-      setDriverId(null);
+    } catch (e) {
+      // 401 = token mort -> déconnexion. Erreur réseau = on garde la session
+      // (le rôle du login reste valable, les écrans réessaieront).
+      if (e instanceof UnauthorizedError) {
+        await store.deleteItemAsync(KEY);
+        setToken(null);
+        setRole('');
+        setDriverId(null);
+      }
     } finally {
       setReady(true);
     }
