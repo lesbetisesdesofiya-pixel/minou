@@ -37,7 +37,10 @@ export default function CommandeDetail() {
   }, [token, id, handleUnauthorized]);
 
   useEffect(() => {
-    load();
+    const t = setTimeout(() => {
+      load();
+    }, 0);
+    return () => clearTimeout(t);
   }, [load]);
 
   const act = async (fn: () => Promise<void>, okMsg: string) => {

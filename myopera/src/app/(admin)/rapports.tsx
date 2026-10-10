@@ -41,7 +41,10 @@ export default function Rapports() {
   }, [token, period, handleUnauthorized]);
 
   useEffect(() => {
-    load();
+    const t = setTimeout(() => {
+      load();
+    }, 0);
+    return () => clearTimeout(t);
   }, [load]);
 
   const revRows: any[] = [...(rev?.data || [])].reverse().slice(0, 12);

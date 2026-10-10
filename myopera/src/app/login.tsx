@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { View, Text, TextInput, Pressable, ScrollView } from 'react-native';
 import { router } from 'expo-router';
-import { useAuth } from '../lib/auth';import { ui, C } from '../lib/ui';
+import { useAuth } from '../lib/auth';
+import { ui, C } from '../lib/ui';
 
 export default function Login() {
   const { login, logout } = useAuth();
@@ -39,7 +40,7 @@ export default function Login() {
       <View style={[ui.card, { marginTop: 16 }]}>
         <Text style={[ui.badgeTextWhite, ui.badgeNavy, { alignSelf: 'flex-start' }]}>Accès réservé</Text>
         <Text style={[ui.title, { marginTop: 8 }]}>Connexion sécurisée</Text>
-        <Text style={ui.subtitle}>Gérant de salle & Chef de cuisine</Text>
+        <Text style={ui.subtitle}>Gérant de salle &amp; Chef de cuisine</Text>
         {!!err && <Text style={[ui.err, { marginTop: 10 }]}>{err}</Text>}
         <Text style={ui.label}>Email professionnel</Text>
         <TextInput style={ui.input} value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" />

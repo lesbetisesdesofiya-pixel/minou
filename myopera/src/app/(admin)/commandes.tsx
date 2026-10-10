@@ -47,8 +47,16 @@ export default function Commandes() {
   }, [token, handleUnauthorized]);
 
   useEffect(() => {
-    load();
-    const t = setInterval(load, 15000);
+    const t = setTimeout(() => {
+      load();
+    }, 0);
+    return () => clearTimeout(t);
+  }, [load]);
+
+  useEffect(() => {
+    const t = setInterval(() => {
+      load();
+    }, 15000);
     return () => clearInterval(t);
   }, [load]);
 

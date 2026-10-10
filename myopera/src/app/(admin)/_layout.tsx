@@ -1,8 +1,9 @@
 import { Tabs, Redirect } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
-import { ActivityIndicator, View } from 'react-native';
+import { Text, View, ActivityIndicator } from 'react-native';
 import { useAuth } from '../../lib/auth';
 import { C } from '../../lib/ui';
+
+const Ico = ({ c }: { c: string }) => <Text style={{ fontSize: 22 }}>{c}</Text>;
 
 export default function AdminLayout() {
   const { token, role, ready } = useAuth();
@@ -26,31 +27,19 @@ export default function AdminLayout() {
     >
       <Tabs.Screen
         name="commandes"
-        options={{
-          title: 'Commandes',
-          tabBarIcon: ({ color, size }) => <Ionicons name="receipt-outline" color={color} size={size} />,
-        }}
+        options={{ title: 'Commandes', tabBarIcon: () => <Ico c="🧾" /> }}
       />
       <Tabs.Screen
         name="carte"
-        options={{
-          title: 'Menu & Stock',
-          tabBarIcon: ({ color, size }) => <Ionicons name="restaurant-outline" color={color} size={size} />,
-        }}
+        options={{ title: 'Menu & Stock', tabBarIcon: () => <Ico c="🍽️" /> }}
       />
       <Tabs.Screen
         name="livreurs"
-        options={{
-          title: 'Livreurs',
-          tabBarIcon: ({ color, size }) => <Ionicons name="bicycle-outline" color={color} size={size} />,
-        }}
+        options={{ title: 'Livreurs', tabBarIcon: () => <Ico c="🛵" /> }}
       />
       <Tabs.Screen
         name="rapports"
-        options={{
-          title: 'Rapports',
-          tabBarIcon: ({ color, size }) => <Ionicons name="stats-chart-outline" color={color} size={size} />,
-        }}
+        options={{ title: 'Rapports', tabBarIcon: () => <Ico c="📊" /> }}
       />
       <Tabs.Screen name="commande" options={{ href: null, title: 'Détail' }} />
     </Tabs>

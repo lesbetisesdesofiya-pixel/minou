@@ -12,7 +12,6 @@ export default function Index() {
       </View>
     );
   }
-  if (!token) return <Redirect href="/login" />;
-  if (role === 'DELIVERY') return <Redirect href="/login" />;
+  if (!token || role === 'DELIVERY') return <Redirect href="/login" />;
   return <Redirect href="/(admin)/commandes" />;
 }

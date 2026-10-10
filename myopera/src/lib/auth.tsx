@@ -38,7 +38,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (me?.delivery_person_id) setDriverId(Number(me.delivery_person_id));
       if (me?.role) setRole(me.role);
     } catch {
-      // token invalide -> déconnexion (retombe sur login, pas de blocage)
       await SecureStore.deleteItemAsync(KEY);
       setToken(null);
       setRole('');
@@ -49,15 +48,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    (async () => {
-      const t = await SecureStore.getItemAsync(KEY);
-      if (!t) {
-        setReady(true);
-        return;
-      }
-      setToken(t);
-      await resolveMe(t);
-    })();
+    const t = setTimeout(() => {
+      SecureStore.getItemAsync(KEY).then((stored) => {
+        if (!stored) {
+          setReady(true);
+          return;
+        }
+        setToken(stored);
+        resolveMe(stored);
+      });
+    }, 0);
+    return () => clearTimeout(t);
   }, [resolveMe]);
 
   const login = async (email: string, password: string) => {
@@ -78,9 +79,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <Ctx.Provider
-      value={{ token, role, driverId, ready, login, logout, handleUnauthorized: logout }}
-    >
+    <Ctx.Provider value={{ token, role, driverId, ready, login, logout, handleUnauthorized: logout }}>
       {children}
     </Ctx.Provider>
   );

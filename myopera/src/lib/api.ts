@@ -1,5 +1,4 @@
-// Client API Opera Resto — même base que l'ex-React web (JWT Bearer).
-// Prod : https://avepozo.operatogo.net/api (voir Api.kt côté Kotlin pour le mirror natif).
+// Client API Opera Resto — même base que l'app Kotlin (Api.kt) : JWT Bearer.
 export const API_BASE = 'https://avepozo.operatogo.net/api';
 
 export class UnauthorizedError extends Error {
