@@ -54,6 +54,13 @@ deploy_site() { # $1=site $2=port $3=dir
   force_kv APP_PORT "$port"
   force_kv APP_URL "https://$site.operatogo.net"
   grep -q '^DB_DATABASE=' "$dir/.env" || echo "DB_DATABASE=opera_resto" >> "$dir/.env"
+  # APP_KEY : remplit si absente OU vide (sinon 500 MissingAppKeyException).
+  # On supprime d'abord les lignes vides pour ne jamais en avoir 2.
+  sed -i '/^APP_KEY=$/d' "$dir/.env"
+  if ! grep -qE '^APP_KEY=.+' "$dir/.env"; then
+    echo "APP_KEY=base64:$(openssl rand -base64 32)" >> "$dir/.env"
+    echo "[$site] APP_KEY générée dans .env"
+  fi
   [ -f "$dir/.env" ] && grep -q '^DB_PASSWORD=' "$dir/.env" || echo "DB_PASSWORD=$(openssl rand -hex 16)" >> "$dir/.env"
   grep -q '^JWT_SECRET=' "$dir/.env" || echo "JWT_SECRET=$(openssl rand -hex 32)" >> "$dir/.env"
   grep -q '^API_KEY=' "$dir/.env" || echo "API_KEY=$API_KEY" >> "$dir/.env"
