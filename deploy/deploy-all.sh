@@ -25,18 +25,9 @@ if [ ! -f "$KEYFILE" ]; then
 fi
 API_KEY="$(cat "$KEYFILE")"
 
-# ── Contenu Caddy : 1 bloc par site ──────────────────────────────────────────
+# ── Contenu Caddy : 1 bloc par site (espaces, pas de \t littéraux) ───────────
 caddy_block() {
-  cat <<EOF
-
-$1.operatogo.net {
-\tencode zstd gzip
-\treverse_proxy $1-app:80
-\tlog {
-\t\toutput stdout
-\t}
-}
-EOF
+  printf '\n%s.operatogo.net {\n  encode zstd gzip\n  reverse_proxy %s-app:80\n  log {\n    output stdout\n  }\n}\n' "$1" "$1"
 }
 
 deploy_site() { # $1=site $2=port $3=dir
@@ -49,13 +40,20 @@ deploy_site() { # $1=site $2=port $3=dir
     git clone --quiet "$REPO" "$dir"
   fi
 
-  # .env : complète SANS écraser (jamais de secret régénéré)
+  # .env : SITE/PORT/URL imposés (structure, pas des secrets) ;
+  # secrets (DB_PASSWORD, JWT_SECRET, API_KEY...) : ajoutés seulement si absents.
   [ -f "$dir/.env" ] || cp "$dir/.env.docker.example" "$dir/.env"
-  set_kv() { grep -q "^$1=" "$dir/.env" || echo "$1=$2" >> "$dir/.env"; }
-  set_kv SITE "$site"
-  set_kv APP_PORT "$port"
-  set_kv APP_URL "https://$site.operatogo.net"
-  set_kv DB_DATABASE "opera_resto"
+  force_kv() {
+    if grep -q "^$1=" "$dir/.env"; then
+      sed -i "s|^$1=.*|$1=$2|" "$dir/.env"
+    else
+      echo "$1=$2" >> "$dir/.env"
+    fi
+  }
+  force_kv SITE "$site"
+  force_kv APP_PORT "$port"
+  force_kv APP_URL "https://$site.operatogo.net"
+  grep -q '^DB_DATABASE=' "$dir/.env" || echo "DB_DATABASE=opera_resto" >> "$dir/.env"
   [ -f "$dir/.env" ] && grep -q '^DB_PASSWORD=' "$dir/.env" || echo "DB_PASSWORD=$(openssl rand -hex 16)" >> "$dir/.env"
   grep -q '^JWT_SECRET=' "$dir/.env" || echo "JWT_SECRET=$(openssl rand -hex 32)" >> "$dir/.env"
   grep -q '^API_KEY=' "$dir/.env" || echo "API_KEY=$API_KEY" >> "$dir/.env"
@@ -75,20 +73,22 @@ deploy_site() { # $1=site $2=port $3=dir
     (cd "$dir" && docker compose down) || true
   fi
 
-  (cd "$dir" && docker compose up -d --build --force-recreate)
-
-  # Seed + menu (réessais : la migration tourne au démarrage du container)
-  for i in 1 2 3 4 5 6; do
-    if (cd "$dir" && docker compose exec -T app php artisan db:seed --force >/dev/null 2>&1); then
-      echo "[$site] seed OK"
-      break
-    fi
-    echo "[$site] seed en attente ($i/6)..."
-    sleep 10
-  done
-  PW=$(grep -E '^DB_PASSWORD=' "$dir/.env" | cut -d= -f2-)
-  (cd "$dir" && docker compose exec -T db mysql -uroot -p"$PW" opera_resto < database/menu-seed.sql) \
-    && echo "[$site] menu OK" || echo "[WARN $site] import menu à vérifier"
+  if (cd "$dir" && docker compose up -d --build --force-recreate); then
+    # Seed + menu (réessais : la migration tourne au démarrage du container)
+    for i in 1 2 3 4 5 6; do
+      if (cd "$dir" && docker compose exec -T app php artisan db:seed --force >/dev/null 2>&1); then
+        echo "[$site] seed OK"
+        break
+      fi
+      echo "[$site] seed en attente ($i/6)..."
+      sleep 10
+    done
+    PW=$(grep -E '^DB_PASSWORD=' "$dir/.env" | cut -d= -f2-)
+    (cd "$dir" && docker compose exec -T db mysql -uroot -p"$PW" opera_resto < database/menu-seed.sql) \
+      && echo "[$site] menu OK" || echo "[WARN $site] import menu à vérifier"
+  else
+    echo "[ERREUR $site] docker compose up a échoué — seed/menu ignorés. Corrige puis relance."
+  fi
 }
 
 deploy_site avepozo 8080 /opt/opera
