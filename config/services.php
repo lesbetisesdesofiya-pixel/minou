@@ -58,4 +58,10 @@ return [
         'key' => env('API_KEY'),
     ],
 
+    'site' => [
+        // Code du restaurant (avepozo|avedji|legbassito) : préfixe les topics
+        // FCM (<code>_admin_alerts, <code>_driver_{id}) pour isoler les sites.
+        'code' => env('SITE', 'avepozo'),
+    ],
+
 ];

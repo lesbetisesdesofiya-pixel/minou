@@ -15,6 +15,16 @@ class FcmService
         $this->serviceAccountFile = base_path('serviceAccountKey.json');
     }
 
+    /**
+     * Préfixe multi-sites : chaque restaurant (SITE=avepozo|avedji|legbassito)
+     * a ses topics propres (<code>_admin_alerts, <code>_driver_{id}).
+     */
+    private function topic(string $name): string
+    {
+        $code = (string) config('services.site.code', 'avepozo');
+        return "{$code}_{$name}";
+    }
+
     private function base64urlEncode(string $data): string
     {
         return rtrim(strtr(base64_encode($data), '+/', '-_'), '=');
@@ -74,7 +84,7 @@ class FcmService
 
             $message = [
                 'message' => [
-                    'topic' => 'admin_alerts',
+                    'topic' => $this->topic('admin_alerts'),
                     'data'  => [
                         'type'          => 'new_order',
                         'title'         => "Nouvelle commande #{$orderId} - {$serviceType}",
@@ -128,7 +138,7 @@ class FcmService
 
             $message = [
                 'message' => [
-                    'topic' => 'admin_alerts',
+                    'topic' => $this->topic('admin_alerts'),
                     'notification' => [
                         'title' => "Paiement reçu : commande #{$orderId}",
                         'body'  => "{$total} F — {$client}",
@@ -197,7 +207,7 @@ class FcmService
 
             $message = [
                 'message' => [
-                    'topic' => "driver_{$driverId}",
+                    'topic' => $this->topic("driver_{$driverId}"),
                     'android' => [
                         'priority' => 'high',
                     ],

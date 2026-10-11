@@ -1,10 +1,14 @@
+# ─── Déploiement multi-sites : 1 dossier par restaurant ─────────────────────
+# /opt/avepozo, /opt/avedji, /opt/legbassito (même code, .env et base propres).
+# Chaque .env définit : SITE (avedji|legbassito|avepozo), APP_PORT (8080/8081/8082),
+# APP_URL, DB_DATABASE, DB_PASSWORD, JWT_SECRET, API_KEY...
 services:
   app:
     build: .
-    container_name: opera-app
+    container_name: ${SITE:-avepozo}-app
     restart: unless-stopped
     ports:
-      - "8080:80"
+      - "${APP_PORT:-8080}:80"
     env_file:
       - .env
     environment:
@@ -21,7 +25,7 @@ services:
 
   db:
     image: mysql:8.0
-    container_name: opera-db
+    container_name: ${SITE:-avepozo}-db
     restart: unless-stopped
     command: --default-authentication-plugin=mysql_native_password
     environment:
@@ -39,7 +43,8 @@ volumes:
   dbdata:
 
 # Réseau du reverse-proxy Caddy existant (classinote-caddy-1) :
-# Caddy joint ce réseau et route avepozo.operatogo.net -> opera-app:80 (HTTPS auto).
+# Caddy route <site>.operatogo.net -> <site>-app:80 (HTTPS auto).
+# Ex. : avepozo.operatogo.net -> avepozo-app:80 (voir deploy/caddy-operatogo.conf).
 networks:
   web:
     external: true

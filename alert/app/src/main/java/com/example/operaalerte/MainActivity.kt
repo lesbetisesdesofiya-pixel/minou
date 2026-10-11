@@ -106,12 +106,14 @@ class MainActivity : ComponentActivity() {
                 TokenStore.saveDriverId(this@MainActivity, driverId)
                 try {
                     val fm = FirebaseMessaging.getInstance()
+                    // Topics isolés par site : <site>_admin_alerts / <site>_driver_{id}
+                    val prefix = Sites.get(this@MainActivity)?.id ?: "avepozo"
                     if (role == "DELIVERY" && driverId > 0) {
                         // Livreurs : uniquement SES courses prêtes (plus d'alarmes cuisine).
-                        try { fm.unsubscribeFromTopic("admin_alerts") } catch (_: Exception) {}
-                        fm.subscribeToTopic("driver_$driverId")
+                        try { fm.unsubscribeFromTopic("${prefix}_admin_alerts") } catch (_: Exception) {}
+                        fm.subscribeToTopic("${prefix}_driver_$driverId")
                     } else {
-                        fm.subscribeToTopic("admin_alerts")
+                        fm.subscribeToTopic("${prefix}_admin_alerts")
                     }
                 } catch (_: Exception) {}
             } catch (_: Exception) {

@@ -10,11 +10,12 @@ class OperaMessagingService : FirebaseMessagingService() {
     override fun onNewToken(token: String) {
         try {
             val fm = FirebaseMessaging.getInstance()
+            val prefix = Sites.get(this)?.id ?: "avepozo"
             if (TokenStore.getRole(this) == "DELIVERY") {
                 val d = TokenStore.getDriverId(this)
-                if (d > 0) fm.subscribeToTopic("driver_$d")
+                if (d > 0) fm.subscribeToTopic("${prefix}_driver_$d")
             } else {
-                fm.subscribeToTopic("admin_alerts")
+                fm.subscribeToTopic("${prefix}_admin_alerts")
             }
         } catch (_: Exception) {}
     }
