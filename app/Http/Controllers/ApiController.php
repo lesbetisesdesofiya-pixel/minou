@@ -8,6 +8,7 @@ use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Dish;
 use App\Models\DishVariation;
+use App\Models\Option;
 use App\Models\DeliveryPerson;
 use App\Services\MenuService;
 use App\Services\OrderService;
@@ -152,9 +153,92 @@ class ApiController extends Controller
         $data = $order->toArray();
         $data['driver_first'] = $order->driver?->first_name;
         $data['driver_last']  = $order->driver?->last_name;
-        $data['items']        = $order->items->toArray();
+        $data['items']        = $this->enrichItems($order->items);
 
         return response()->json($data);
+    }
+
+    /**
+     * Détail des options par article : garnitures, suppléments (+prix), parfums,
+     * poisson (plats catégorie Poissons : suffixe "(...)" ou variation choisie).
+     */
+    private function enrichItems($items): array
+    {
+        $baseNames = $items
+            ->map(fn($it) => trim((string) preg_replace('/\s*\(.*\)\s*$/u', '', $it->product_name ?? '')))
+            ->filter()->unique()->values();
+
+        $dishes = Dish::with(['category', 'variations'])
+            ->whereIn('nom', $baseNames)
+            ->get()->keyBy('nom');
+
+        $optRows = Option::get(['nom', 'type', 'prix']);
+        $optTypes = [];
+        $optPrices = [];
+        foreach ($optRows as $o) {
+            $optTypes[$o->nom] = $o->type;
+            $optTypes[mb_strtolower($o->nom)] = $optTypes[$o->nom] ?? $o->type;
+            $optPrices[$o->nom] = (float) $o->prix;
+            $optPrices[mb_strtolower($o->nom)] = $optPrices[$o->nom] ?? (float) $o->prix;
+        }
+
+        return $items->map(function ($it) use ($dishes, $optTypes, $optPrices) {
+            $arr  = $it->toArray();
+            $name = (string) ($arr['product_name'] ?? '');
+            $base = trim((string) preg_replace('/\s*\(.*\)\s*$/u', '', $name));
+            $suffix = '';
+            if (preg_match('/\((.*)\)\s*$/u', $name, $m)) $suffix = trim($m[1]);
+
+            $dish = $dishes[$base] ?? null;
+            $isFish = $dish && $dish->category && $dish->category->nom === 'Poissons';
+
+            $fish = null;
+            if ($isFish && $suffix !== '') {
+                $known = $dish->variations->first(
+                    fn($v) => mb_strtolower($v->name) === mb_strtolower($suffix)
+                );
+                $fish = $known ? $known->name : $suffix;
+            }
+
+            $garnitures = [];
+            $supplements = [];
+            $parfums = [];
+            $autres = [];
+            $opts = array_map('trim', explode(',', (string) ($arr['options_text'] ?? '')));
+            foreach ($opts as $on) {
+                if ($on === '') continue;
+                // Variation poisson choisie hors suffixe (ex. option "Bar")
+                if ($isFish && $fish === null && $dish) {
+                    $match = $dish->variations->first(
+                        fn($v) => mb_strtolower($v->name) === mb_strtolower($on)
+                    );
+                    if ($match) {
+                        $fish = $match->name;
+                        continue;
+                    }
+                }
+                $type = $optTypes[$on] ?? $optTypes[mb_strtolower($on)] ?? null;
+                if ($type === 'garniture') {
+                    $garnitures[] = $on;
+                } elseif ($type === 'supplement') {
+                    $supplements[] = ['name' => $on, 'price' => $optPrices[$on] ?? $optPrices[mb_strtolower($on)] ?? 0];
+                } elseif ($type === 'parfum') {
+                    $parfums[] = $on;
+                } else {
+                    $autres[] = $on;
+                }
+            }
+
+            $arr['options_detail'] = [
+                'fish'        => $fish,
+                'is_fish_dish'=> (bool) $isFish,
+                'garnitures'  => array_values($garnitures),
+                'supplements' => array_values($supplements),
+                'parfums'     => array_values($parfums),
+                'autres'      => array_values($autres),
+            ];
+            return $arr;
+        })->toArray();
     }
 
     // ─── PATCH /api/orders/{id}/status ─────────────────────────────────────────

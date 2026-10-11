@@ -130,15 +130,38 @@ export default function CommandeDetail() {
             <ReceiptText color={C.navy} size={16} />
             <Text style={{ fontWeight: '800', color: C.navy }}>Articles ({items.length})</Text>
           </View>
-          {items.map((it, i) => (
-            <View key={i} style={[ui.row, { paddingVertical: 6 }]}>
-              <View style={{ flex: 1 }}>
-                <Text style={{ color: C.navy, fontWeight: '700' }}>{it.product_name || it.name} ×{it.quantity}</Text>
-                {!!it.options && <Text style={ui.subtitle}>{it.options}</Text>}
+          {items.map((it, i) => {
+            const det = it.options_detail || {};
+            const sups: any[] = det.supplements || [];
+            return (
+              <View key={i} style={{ paddingVertical: 6, borderBottomWidth: i < items.length - 1 ? 1 : 0, borderBottomColor: '#F1F5F9' }}>
+                <View style={ui.row}>
+                  <Text style={{ flex: 1, color: C.navy, fontWeight: '700' }}>{it.product_name || it.name} ×{it.quantity}</Text>
+                  <Text style={{ color: C.navy, fontWeight: '800' }}>{fmt(it.price)}</Text>
+                </View>
+                {!!det.fish && (
+                  <Text style={{ fontSize: 13, fontWeight: '700', color: '#0284C7', marginTop: 2 }}>Poisson : {det.fish}</Text>
+                )}
+                {(det.garnitures || []).length > 0 && (
+                  <Text style={ui.subtitle}>Garnitures : {det.garnitures.join(', ')}</Text>
+                )}
+                {sups.length > 0 && (
+                  <Text style={ui.subtitle}>
+                    Suppléments : {sups.map((s: any) => (typeof s === 'string' ? s : `${s.name} (+${Number(s.price || 0).toLocaleString('fr-FR')} F)`)).join(', ')}
+                  </Text>
+                )}
+                {(det.parfums || []).length > 0 && (
+                  <Text style={ui.subtitle}>Parfums : {det.parfums.join(', ')}</Text>
+                )}
+                {(det.autres || []).length > 0 && (
+                  <Text style={ui.subtitle}>• {det.autres.join(', ')}</Text>
+                )}
+                {!det.fish && !(det.garnitures || []).length && !sups.length && !(det.parfums || []).length && !(det.autres || []).length && !!it.options && (
+                  <Text style={ui.subtitle}>{it.options}</Text>
+                )}
               </View>
-              <Text style={{ color: C.navy, fontWeight: '800' }}>{fmt(it.price)}</Text>
-            </View>
-          ))}
+            );
+          })}
           {!!order.notes && <Text style={[ui.subtitle, { marginTop: 8 }]}>📝 Note : {order.notes}</Text>}
         </View>
 

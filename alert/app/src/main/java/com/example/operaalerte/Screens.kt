@@ -202,6 +202,8 @@ fun AlertScreen(alert: OrderAlert, onAccept: () -> Unit, onRefuse: () -> Unit) {
                     Text("${alert.name} • ${alert.phone}", color = Muted)
                     if (alert.neighborhood.isNotEmpty()) Text("📍 ${alert.neighborhood}", color = Muted)
                     if (alert.note.isNotEmpty()) Text("📝 ${alert.note}", color = Muted)
+                    if (alert.fish.isNotEmpty()) Text("Poisson : ${alert.fish}",
+                        color = Color(0xFF0284C7), fontWeight = FontWeight.Bold)
                 }
             }
             Spacer(Modifier.height(10.dp))
@@ -209,9 +211,12 @@ fun AlertScreen(alert: OrderAlert, onAccept: () -> Unit, onRefuse: () -> Unit) {
                 Column {
                     Text("Articles (${alert.items.size})", fontWeight = FontWeight.Bold, color = Navy)
                     alert.items.forEach {
-                        Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text("${it.name} ×${it.qty}", color = Navy)
-                            Text("${it.price.toLong()} F", fontWeight = FontWeight.Bold, color = Navy)
+                        Column(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text("${it.name} ×${it.qty}", color = Navy)
+                                Text("${it.price.toLong()} F", fontWeight = FontWeight.Bold, color = Navy)
+                            }
+                            if (it.options.isNotEmpty()) Text(it.options, color = Muted, fontSize = 12.sp)
                         }
                     }
                     if (alert.items.isEmpty()) Text("Détail dans le dashboard.", color = Muted)
