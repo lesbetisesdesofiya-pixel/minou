@@ -11,6 +11,7 @@
       "icon": "./assets/expo.icon"
     },
     "android": {
+      "package": "com.example.operaadmin",
       "adaptiveIcon": {
         "backgroundColor": "#143278",
         "foregroundImage": "./assets/images/android-icon-foreground.png"
