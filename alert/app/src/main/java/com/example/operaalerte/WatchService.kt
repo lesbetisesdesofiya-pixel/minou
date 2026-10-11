@@ -56,6 +56,25 @@ class WatchService : Service() {
         }
     }
 
+    // Statuts "nouvelle commande" : pending + paiement désactivé (Payée direct)
+    // + attente de paiement (si réactivé). Garde-fou récence 30 min pour ne pas
+    // sonner sur de vieilles commandes jamais vues (ex. 1er lancement).
+    private val NEW_STATUSES = setOf("pending", "En attente de paiement", "Payée")
+    private val MAX_AGE_MS = 30 * 60 * 1000L
+
+    private fun isRecent(o: org.json.JSONObject): Boolean {
+        val raw = o.optString("created_at", "")
+        if (raw.isEmpty()) return true
+        return try {
+            // java.time = API 26+ ; en dessous on considère récent (pas de crash).
+            if (android.os.Build.VERSION.SDK_INT < 26) return true
+            val instant = java.time.Instant.parse(raw)
+            System.currentTimeMillis() - instant.toEpochMilli() < MAX_AGE_MS
+        } catch (_: Throwable) {
+            true
+        }
+    }
+
     private suspend fun check() {
         val token = TokenStore.get(this) ?: return
         val list = Api.listOrders(token, 10)
@@ -63,9 +82,10 @@ class WatchService : Service() {
         for (i in 0 until list.length()) {
             val o = list.optJSONObject(i) ?: continue
             val id = o.opt("id")?.toString() ?: continue
-            if (o.optString("status", "") != "pending") continue
+            if (o.optString("status", "") !in NEW_STATUSES) continue
             if (seen.contains(id) || seen.contains("fcm-$id")) continue
             TokenStore.addSeen(this, id)
+            if (!isRecent(o)) continue
             try {
                 val detail = Api.getOrder(token, id)
                 Alerts.raise(this, OrderAlert.fromOrderJson(detail))

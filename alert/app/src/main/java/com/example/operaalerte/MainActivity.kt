@@ -105,7 +105,18 @@ class MainActivity : ComponentActivity() {
         }
         WatchService.start(this)
         if (intent?.action == ACTION_ALERT) {
-            nav = Nav.Alert(OrderAlert.fromIntent(intent), token)
+            // Détail complet direct sur la page d'alerte (source fiable : l'API),
+            // avec repli sur les données du push si le réseau flanche.
+            val id = intent.getStringExtra("order_id") ?: return
+            nav = Nav.Loading
+            lifecycleScope.launch {
+                try {
+                    val detail = Api.getOrder(token, id)
+                    nav = Nav.Alert(OrderAlert.fromOrderJson(detail), token)
+                } catch (_: Exception) {
+                    nav = Nav.Alert(OrderAlert.fromIntent(intent), token)
+                }
+            }
         } else if (nav is Nav.Loading || nav is Nav.Setup) {
             nav = Nav.Main
         }
