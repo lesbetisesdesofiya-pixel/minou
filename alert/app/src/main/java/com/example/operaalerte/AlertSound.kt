@@ -15,6 +15,7 @@ import android.os.VibratorManager
  */
 object AlertSound {
     private var player: MediaPlayer? = null
+    private var vibrator: Vibrator? = null
 
     @Synchronized
     fun start(ctx: Context) {
@@ -43,6 +44,7 @@ object AlertSound {
                 @Suppress("DEPRECATION")
                 ctx.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
             }
+            vibrator = vib
             if (Build.VERSION.SDK_INT >= 26) {
                 vib?.vibrate(VibrationEffect.createWaveform(longArrayOf(0, 900, 400, 900), 0))
             } else {
@@ -57,6 +59,8 @@ object AlertSound {
         try { player?.stop() } catch (_: Exception) {}
         try { player?.release() } catch (_: Exception) {}
         player = null
+        try { vibrator?.cancel() } catch (_: Exception) {}
+        vibrator = null
     }
 
     fun isPlaying(): Boolean = try { player?.isPlaying == true } catch (_: Exception) { false }
