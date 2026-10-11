@@ -20,9 +20,20 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Cancel
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.EditNote
+import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.NotificationsActive
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.ReceiptLong
+import androidx.compose.material.icons.filled.SetMeal
+import androidx.compose.material.icons.filled.Timer
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -146,8 +157,6 @@ fun MainScreen(onOpenDashboard: () -> Unit) {
         OutlinedButton(onClick = onOpenDashboard, modifier = Modifier.fillMaxWidth()) {
             Text("Ouvrir le dashboard", color = Navy)
         }
-        Spacer(Modifier.height(16.dp))
-        Text("Laisse l'app installée : FCM + surveillance 20 s prennent le relais même app fermée.", color = Muted, fontSize = 12.sp)
     }
 }
 
@@ -165,6 +174,7 @@ fun AlertScreen(alert: OrderAlert, onAccept: () -> Unit, onRefuse: () -> Unit) {
     val mm = "%02d:%02d".format(left / 60, left % 60)
 
     Column(Modifier.fillMaxSize().background(PageBg).verticalScroll(rememberScrollState())) {
+        // Bannière dégradé orange (design) + cloche navy
         Box(
             Modifier.fillMaxWidth()
                 .background(Brush.verticalGradient(listOf(OrangeDeep, Orange, Color(0xFFF59E0B))))
@@ -172,31 +182,62 @@ fun AlertScreen(alert: OrderAlert, onAccept: () -> Unit, onRefuse: () -> Unit) {
             contentAlignment = Alignment.Center,
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("🔔", fontSize = 34.sp)
+                Box(
+                    Modifier.background(Navy.copy(alpha = 0.25f), RoundedCornerShape(999.dp)).padding(12.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(Icons.Filled.NotificationsActive, contentDescription = "Alerte",
+                        tint = Color.White, modifier = Modifier.padding(2.dp))
+                }
+                Spacer(Modifier.height(8.dp))
                 Text("ALERTE ENTRANTE", color = Color.White.copy(alpha = 0.85f), fontSize = 11.sp, fontWeight = FontWeight.Bold)
                 Text("Nouvelle commande !", color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.ExtraBold)
-                Text("#OP-${alert.id} • $mm", color = Color.White, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height(8.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.background(Navy, RoundedCornerShape(999.dp)).padding(horizontal = 14.dp, vertical = 6.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Filled.Timer, contentDescription = null, tint = Color.White)
+                            Spacer(Modifier.padding(2.dp))
+                            Text("#OP-${alert.id} • $mm", color = Color.White, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
             }
         }
         Column(Modifier.padding(16.dp)) {
+            // Carte commande
             Box(Modifier.fillMaxWidth().background(Color.White, RoundedCornerShape(16.dp)).padding(16.dp)) {
                 Column {
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically) {
                         Text(alert.total, fontWeight = FontWeight.ExtraBold, fontSize = 20.sp, color = Navy)
-                        Text("Payé en ligne", color = Green, fontWeight = FontWeight.Bold)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Filled.CheckCircle, contentDescription = null, tint = Green)
+                            Spacer(Modifier.padding(2.dp))
+                            Text("Payé en ligne", color = Green, fontWeight = FontWeight.Bold)
+                        }
                     }
-                    Spacer(Modifier.height(6.dp))
-                    Text("${alert.name} • ${alert.phone}", color = Muted)
-                    if (alert.neighborhood.isNotEmpty()) Text("📍 ${alert.neighborhood}", color = Muted)
-                    if (alert.note.isNotEmpty()) Text("📝 ${alert.note}", color = Muted)
-                    if (alert.fish.isNotEmpty()) Text("Poisson : ${alert.fish}",
-                        color = Color(0xFF0284C7), fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.height(8.dp))
+                    InfoRow(Icons.Filled.Person, "${alert.name} • ${alert.phone}")
+                    if (alert.neighborhood.isNotEmpty()) InfoRow(Icons.Filled.LocationOn, alert.neighborhood)
+                    if (alert.note.isNotEmpty()) InfoRow(Icons.Filled.EditNote, alert.note)
+                    if (alert.fish.isNotEmpty()) Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Filled.SetMeal, contentDescription = null, tint = Color(0xFF0284C7))
+                        Spacer(Modifier.padding(2.dp))
+                        Text("Poisson : ${alert.fish}", color = Color(0xFF0284C7), fontWeight = FontWeight.Bold)
+                    }
                 }
             }
             Spacer(Modifier.height(10.dp))
+            // Carte articles
             Box(Modifier.fillMaxWidth().background(Color.White, RoundedCornerShape(16.dp)).padding(16.dp)) {
                 Column {
-                    Text("Articles (${alert.items.size})", fontWeight = FontWeight.Bold, color = Navy)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Filled.ReceiptLong, contentDescription = null, tint = Navy)
+                        Spacer(Modifier.padding(3.dp))
+                        Text("Articles (${alert.items.size})", fontWeight = FontWeight.Bold, color = Navy)
+                    }
+                    Spacer(Modifier.height(4.dp))
                     alert.items.forEach {
                         Column(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -215,13 +256,30 @@ fun AlertScreen(alert: OrderAlert, onAccept: () -> Unit, onRefuse: () -> Unit) {
                 enabled = !busy,
                 modifier = Modifier.fillMaxWidth().height(52.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = OrangeDeep),
-            ) { Text("Accepter la commande", fontWeight = FontWeight.Bold) }
+            ) {
+                Icon(Icons.Filled.CheckCircle, contentDescription = null, tint = Color.White)
+                Spacer(Modifier.padding(4.dp))
+                Text("Accepter la commande", fontWeight = FontWeight.Bold)
+            }
             Spacer(Modifier.height(8.dp))
             OutlinedButton(
                 onClick = { busy = true; onRefuse() },
                 enabled = !busy,
                 modifier = Modifier.fillMaxWidth().height(52.dp),
-            ) { Text("Refuser (couper l'alarme)", color = Muted) }
+            ) {
+                Icon(Icons.Filled.Cancel, contentDescription = null, tint = Navy)
+                Spacer(Modifier.padding(4.dp))
+                Text("Refuser (couper l'alarme)", color = Navy)
+            }
         }
+    }
+}
+
+@Composable
+private fun InfoRow(icon: androidx.compose.ui.graphics.vector.ImageVector, text: String) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Icon(icon, contentDescription = null, tint = Muted)
+        Spacer(Modifier.padding(2.dp))
+        Text(text, color = Muted)
     }
 }
