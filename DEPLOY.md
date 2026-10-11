@@ -16,6 +16,10 @@ git push -u origin main
 git clone https://github.com/lesbetisesdesofiya-pixel/minou.git /opt/opera && cd /opt/opera
 cp .env.docker.example .env
 nano .env   # APP_KEY (généré auto), DB_PASSWORD, JWT_SECRET (64 hex), MoneyFusion
+# Clé API (endpoints publics verrouillés) : ajouter dans .env :
+# API_KEY=<64 hex, même valeur que EXPO_PUBLIC_API_KEY et apiKey Android>
+# Changer la clé plus tard : nano .env puis docker compose up -d --force-recreate
+# Apps clientes : myopera/.env.local (EXPO_PUBLIC_API_KEY), alert/local.properties (apiKey)
 docker compose up -d --build
 docker compose exec app php artisan db:seed --force   # comptes admin + livreur
 # Données du menu (exportées du local) :

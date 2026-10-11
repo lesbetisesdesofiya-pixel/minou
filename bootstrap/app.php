@@ -16,6 +16,8 @@ return Application::configure(basePath: dirname(__DIR__))
         // à X-Forwarded-Proto pour générer des URLs https (asset(), url()).
         // Sans ça : Mixed Content (scripts http:// bloqués sur page https).
         $middleware->trustProxies(at: '*');
+        // Clé API obligatoire sur les endpoints publics (voir routes/api.php)
+        $middleware->alias(['api.key' => \App\Http\Middleware\RequireApiKey::class]);
         $middleware->validateCsrfTokens(except: [
             'orders',
             'orders/*',

@@ -32,6 +32,14 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
+    }
+
+    // Clé API serveur (header X-API-Key) lue depuis alert/local.properties :
+    // apiKey=<clé>  (fichier local, ignoré par git, jamais commité)
+    defaultConfig {
+        val apiKey: String = project.findProperty("apiKey") as String? ?: ""
+        buildConfigField("String", "API_KEY", "\"$apiKey\"")
     }
 }
 

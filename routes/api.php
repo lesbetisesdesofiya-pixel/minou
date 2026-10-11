@@ -8,14 +8,17 @@ use App\Http\Controllers\ApiController;
 | API Opera Resto — l'app fonctionne intégralement via ces endpoints
 | Base URL locale : http://localhost/opera/public/api
 |--------------------------------------------------------------------------
-| Publics (client / app mobile) : menu, devis, commande, paiement, suivi.
-| Protégés (JWT admin, header Authorization: Bearer <token>) : gestion.
-| Webhook MoneyFusion : public, appelé par MoneyFusion (POST).
+| Clé API (header X-API-Key, voir API_KEY dans .env) : obligatoire sur les
+| routes "publiques" ci-dessous (y compris l'index et la doc).
+| Ouverts sans clé : POST /api/auth/login (throttle anti-brute-force),
+| POST /api/payment/webhook (anti-fraude propre) et routes JWT (token requis).
 |--------------------------------------------------------------------------
 */
 
-// ─── Index de l'API (découverte) ────────────────────────────────────────────
-Route::get('/', function () {
+// ─── Tout ce qui est "public" exige la clé API ───────────────────────────────
+Route::middleware('api.key')->group(function () {
+    // ─── Index de l'API (découverte, masqué sans clé) ────────────────────────
+    Route::get('/', function () {
     return response()->json([
         'app'     => 'Opera Resto API',
         'version' => '1.0',
@@ -57,16 +60,17 @@ Route::get('/docs', function () {
 Route::get('/menu', [ApiController::class, 'menu']);
 Route::get('/delivery/zones', [ApiController::class, 'deliveryZones']);
 
-// ─── Devis (public) ──────────────────────────────────────────────────────────
+// ─── Devis (clé API requise) ─────────────────────────────────────────────────
 Route::post('/quote', [ApiController::class, 'quote']);
 
-// ─── Commandes client (public, throttlées anti-spam) ───────────────────────────
+// ─── Commandes client (clé API + throttle anti-spam) ─────────────────────────
 Route::post('/orders', [ApiController::class, 'storeOrder'])->middleware('throttle:20,1');
 Route::post('/orders/{id}/cancel', [ApiController::class, 'cancelOrder']);
 Route::post('/orders/{id}/moneyfusion/initiate', [ApiController::class, 'initiatePayment'])->middleware('throttle:20,1');
 Route::post('/orders/{id}/moneyfusion/simulate', [ApiController::class, 'simulatePayment']);
 Route::get('/orders/{id}/moneyfusion/status', [ApiController::class, 'paymentStatus']);
 Route::get('/orders/{id}/tracking', [ApiController::class, 'tracking']);
+}); // fin groupe api.key
 
 // ─── Webhook MoneyFusion (public, serveur-à-serveur) ─────────────────────────
 Route::post('/payment/webhook', [ApiController::class, 'paymentWebhook']);

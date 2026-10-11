@@ -52,4 +52,10 @@ return [
         'secret' => env('JWT_SECRET'),
     ],
 
+    'api' => [
+        // Clé exigée (header X-API-Key) sur les endpoints API publics.
+        // Fail-closed : vide => tout est refusé (401).
+        'key' => env('API_KEY'),
+    ],
+
 ];

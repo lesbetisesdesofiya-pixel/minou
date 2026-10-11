@@ -1,5 +1,7 @@
 package com.example.operaalerte
 
+import com.example.operaalerte.BuildConfig
+
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
@@ -28,6 +30,8 @@ object Api {
             connectTimeout = 15000
             readTimeout = 15000
             setRequestProperty("Accept", "application/json")
+            // Clé API exigée par le serveur (BuildConfig via alert/local.properties : apiKey=...)
+            if (BuildConfig.API_KEY.isNotEmpty()) setRequestProperty("X-API-Key", BuildConfig.API_KEY)
             if (token != null) setRequestProperty("Authorization", "Bearer $token")
             if (body != null) {
                 doOutput = true

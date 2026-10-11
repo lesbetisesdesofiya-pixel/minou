@@ -15,11 +15,16 @@ type Options = {
   body?: unknown;
 };
 
+// Clé API exigée par le serveur (X-API-Key) — à définir dans myopera/.env.local :
+// EXPO_PUBLIC_API_KEY=<clé> (fichier ignoré par git, jamais commité).
+const API_KEY: string = ((process as any)?.env?.EXPO_PUBLIC_API_KEY as string | undefined) || '';
+
 export async function api(path: string, opts: Options = {}): Promise<any> {
   const res = await fetch(getApiBase() + path, {
     method: opts.method || 'GET',
     headers: {
       Accept: 'application/json',
+      ...(API_KEY ? { 'X-API-Key': API_KEY } : {}),
       ...(opts.body !== undefined ? { 'Content-Type': 'application/json' } : {}),
       ...(opts.token ? { Authorization: `Bearer ${opts.token}` } : {}),
     },
