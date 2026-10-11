@@ -1,5 +1,13 @@
 # Déploiement VPS — 3 sites : avepozo / avedji / legbassito (.operatogo.net)
 
+## 0. Méthode rapide : UNE SEULE commande (tout sauf DNS, voir §1)
+```bash
+sudo mkdir -p /opt && sudo chown $USER:$USER /opt && [ -d /opt/opera/.git ] || git clone https://github.com/lesbetisesdesofiya-pixel/minou.git /opt/opera && bash /opt/opera/deploy/deploy-all.sh
+```
+Le script (idempotent, relançable) : pull/clone les 3 dossiers, crée les `.env`
+(secrets générés sauf existants), copie `serviceAccountKey.json`, seed + menu,
+ajoute les 3 vhosts Caddy + reload. Affiche la clé API à reporter dans les apps.
+
 ## 1. DNS (zone operatogo.net)
 Pour CHAQUE sous-domaine (avepozo, avedji, legbassito) :
 ```
