@@ -2,6 +2,7 @@
 import { Platform } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 import { api, UnauthorizedError } from './api';
+import { useSite } from './site';
 
 const KEY = 'opera_token';
 
@@ -50,6 +51,7 @@ const Ctx = createContext<Auth>({
 export const useAuth = () => useContext(Ctx);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const { siteReady } = useSite();
   const [token, setToken] = useState<string | null>(null);
   const [role, setRole] = useState('');
   const [driverId, setDriverId] = useState<number | null>(null);
@@ -75,6 +77,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
+    if (!siteReady) return; // base API du site d'abord (choix unique avant login)
     const t = setTimeout(() => {
       store.getItemAsync(KEY).then((stored) => {
         if (!stored) {
@@ -86,7 +89,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
     }, 0);
     return () => clearTimeout(t);
-  }, [resolveMe]);
+  }, [resolveMe, siteReady]);
 
   const login = async (email: string, password: string) => {
     const data = await api('/auth/login', { method: 'POST', body: { email, password } });

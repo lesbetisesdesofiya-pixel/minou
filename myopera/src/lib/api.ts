@@ -1,5 +1,6 @@
 // Client API Opera Resto — même base que l'app Kotlin (Api.kt) : JWT Bearer.
-export const API_BASE = 'https://avepozo.operatogo.net/api';
+// L'URL dépend du site choisi une fois avant le login (voir lib/site.tsx).
+import { getApiBase } from './site';
 
 export class UnauthorizedError extends Error {
   constructor() {
@@ -15,7 +16,7 @@ type Options = {
 };
 
 export async function api(path: string, opts: Options = {}): Promise<any> {
-  const res = await fetch(API_BASE + path, {
+  const res = await fetch(getApiBase() + path, {
     method: opts.method || 'GET',
     headers: {
       Accept: 'application/json',

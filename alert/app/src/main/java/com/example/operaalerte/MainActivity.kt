@@ -17,6 +17,7 @@ import kotlinx.coroutines.launch
 
 sealed interface Nav {
     data object Loading : Nav
+    data object SiteSelect : Nav
     data object Setup : Nav
     data object Main : Nav
     data class Alert(val alert: OrderAlert, val token: String) : Nav
@@ -46,10 +47,23 @@ class MainActivity : ComponentActivity() {
                 RequestNotifPermission()
                 when (val n = nav) {
                     is Nav.Loading -> SplashBox()
+                    is Nav.SiteSelect -> SiteScreen(onPick = { id ->
+                        Sites.save(this, id)
+                        TokenStore.clear(this) // le token est lié à un site
+                        WatchService.stop(this)
+                        handleIntent(null)
+                    })
                     is Nav.Setup -> SetupScreen(onLoggedIn = { handleIntent(null) })
                     is Nav.Main -> MainScreen(
                         onTestAlarm = { testAlarm() },
                         onOpenDashboard = { openDeeplink("myopera://commandes") },
+                        onChangeSite = {
+                            Sites.clear(this)
+                            TokenStore.clear(this)
+                            WatchService.stop(this)
+                            AlertSound.stop()
+                            handleIntent(null)
+                        },
                         onLogout = {
                             TokenStore.clear(this)
                             WatchService.stop(this)
@@ -77,6 +91,13 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun handleIntent(intent: Intent?) {
+        // Ordre strict : site (base API) AVANT token, sinon appels vers le mauvais site.
+        val site = Sites.applyStored(this)
+        if (site == null) {
+            WatchService.stop(this)
+            nav = Nav.SiteSelect
+            return
+        }
         val token = TokenStore.get(this)
         if (token.isNullOrEmpty()) {
             nav = Nav.Setup

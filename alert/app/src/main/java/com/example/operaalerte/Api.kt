@@ -7,9 +7,15 @@ import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
 
-/** Client minimal de l'API Opera (HttpURLConnection + org.json, sans dépendance). */
+/** Client minimal de l'API Opera (HttpURLConnection + org.json, sans dépendance).
+ *  L'hôte dépend du site choisi une fois avant le login (voir Sites). */
 object Api {
-    const val BASE = "https://avepozo.operatogo.net/api"
+    var BASE = "https://avepozo.operatogo.net/api"
+        private set
+
+    fun setSite(host: String) {
+        BASE = "https://$host/api"
+    }
 
     private fun req(
         method: String,

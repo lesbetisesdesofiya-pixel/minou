@@ -3,10 +3,12 @@ import { View, Text, TextInput, Pressable, ScrollView } from 'react-native';
 import { Lock } from 'lucide-react-native';
 import { router } from 'expo-router';
 import { useAuth } from '../lib/auth';
+import { useSite } from '../lib/site';
 import { ui, C } from '../lib/ui';
 
 export default function Login() {
   const { login, logout } = useAuth();
+  const { site, forgetSite } = useSite();
   const [email, setEmail] = useState('admin@opera.com');
   const [password, setPassword] = useState('');
   const [err, setErr] = useState('');
@@ -55,6 +57,16 @@ export default function Login() {
           <Lock color={C.muted} size={14} />
           <Text style={ui.subtitle}>Token stocké chiffré (SecureStore)</Text>
         </View>
+        <Pressable
+          style={{ marginTop: 8 }}
+          onPress={async () => {
+            await forgetSite();
+            await logout();
+            router.replace('/site-select');
+          }}
+        >
+          <Text style={ui.link}>Restaurant : {site ? `${site.label} (${site.host})` : '—'} — changer</Text>
+        </Pressable>
       </View>
     </ScrollView>
   );

@@ -108,9 +108,31 @@ fun SetupScreen(onLoggedIn: () -> Unit) {
     }
 }
 
+/** Choix unique du restaurant AVANT le login (détermine l'URL de l'API). */
+@Composable
+fun SiteScreen(onPick: (String) -> Unit) {
+    Column(
+        Modifier.fillMaxSize().background(PageBg).padding(24.dp),
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Text("Opéra Alerte", fontSize = 26.sp, fontWeight = FontWeight.ExtraBold, color = Navy)
+        Text("Choisis ton restaurant (une seule fois).", color = Muted)
+        Spacer(Modifier.height(16.dp))
+        Sites.ALL.forEach { s ->
+            Button(onClick = { onPick(s.id) }, modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Navy)) {
+                Column(horizontalAlignment = Alignment.Start, modifier = Modifier.fillMaxWidth()) {
+                    Text(s.label, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    Text(s.host, fontSize = 12.sp, color = Color.White.copy(alpha = 0.7f))
+                }
+            }
+        }
+    }
+}
+
 /** Écran principal : état de surveillance + test + dashboard. */
 @Composable
-fun MainScreen(onTestAlarm: () -> Unit, onOpenDashboard: () -> Unit, onLogout: () -> Unit) {
+fun MainScreen(onTestAlarm: () -> Unit, onOpenDashboard: () -> Unit, onChangeSite: () -> Unit, onLogout: () -> Unit) {
     Column(
         Modifier.fillMaxSize().background(PageBg).padding(24.dp),
         verticalArrangement = Arrangement.Center,
@@ -132,6 +154,10 @@ fun MainScreen(onTestAlarm: () -> Unit, onOpenDashboard: () -> Unit, onLogout: (
         Spacer(Modifier.height(8.dp))
         OutlinedButton(onClick = onLogout, modifier = Modifier.fillMaxWidth()) {
             Text("Déconnecter cet appareil", color = Muted)
+        }
+        Spacer(Modifier.height(8.dp))
+        OutlinedButton(onClick = onChangeSite, modifier = Modifier.fillMaxWidth()) {
+            Text("Changer de restaurant", color = Muted)
         }
         Spacer(Modifier.height(16.dp))
         Text("Laisse l'app installée : FCM + surveillance 20 s prennent le relais même app fermée.", color = Muted, fontSize = 12.sp)
