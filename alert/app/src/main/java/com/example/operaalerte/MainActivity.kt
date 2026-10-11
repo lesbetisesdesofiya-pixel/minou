@@ -55,21 +55,7 @@ class MainActivity : ComponentActivity() {
                     })
                     is Nav.Setup -> SetupScreen(onLoggedIn = { handleIntent(null) })
                     is Nav.Main -> MainScreen(
-                        onTestAlarm = { testAlarm() },
                         onOpenDashboard = { openDeeplink("myopera://commandes") },
-                        onChangeSite = {
-                            Sites.clear(this)
-                            TokenStore.clear(this)
-                            WatchService.stop(this)
-                            AlertSound.stop()
-                            handleIntent(null)
-                        },
-                        onLogout = {
-                            TokenStore.clear(this)
-                            WatchService.stop(this)
-                            AlertSound.stop()
-                            handleIntent(null)
-                        },
                     )
                     is Nav.Alert -> AlertScreen(
                         alert = n.alert,
@@ -132,24 +118,6 @@ class MainActivity : ComponentActivity() {
             openDeeplink("myopera://commande/${n.alert.id}")
             nav = Nav.Main
         }
-    }
-
-    /** Test manuel : même chemin qu'une vraie alarme (son + écran). */
-    private fun testAlarm() {
-        val test = OrderAlert(
-            id = "TEST",
-            total = "16 000 FCFA",
-            name = "Kouamé Jean-Marc",
-            phone = "+225 07 88 45 12 90",
-            neighborhood = "Cocody Danga",
-            items = listOf(
-                OrderItem("Bar grillé", 1, 12500.0),
-                OrderItem("Cocktail Passion", 1, 3500.0),
-            ),
-            note = "Poisson bien grillé",
-        )
-        Alerts.raise(this, test)
-        nav = Nav.Alert(test, TokenStore.get(this) ?: "")
     }
 
     private fun openDeeplink(uri: String) {

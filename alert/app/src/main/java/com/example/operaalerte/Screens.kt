@@ -130,9 +130,9 @@ fun SiteScreen(onPick: (String) -> Unit) {
     }
 }
 
-/** Écran principal : état de surveillance + test + dashboard. */
+/** Écran principal : état de surveillance + dashboard. */
 @Composable
-fun MainScreen(onTestAlarm: () -> Unit, onOpenDashboard: () -> Unit, onChangeSite: () -> Unit, onLogout: () -> Unit) {
+fun MainScreen(onOpenDashboard: () -> Unit) {
     Column(
         Modifier.fillMaxSize().background(PageBg).padding(24.dp),
         verticalArrangement = Arrangement.Center,
@@ -143,21 +143,8 @@ fun MainScreen(onTestAlarm: () -> Unit, onOpenDashboard: () -> Unit, onChangeSit
             Text("Surveillance active — sonne à chaque commande.", color = Muted)
         }
         Spacer(Modifier.height(16.dp))
-        Button(onClick = onTestAlarm, modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = OrangeDeep)) {
-            Text("Tester l'alarme maintenant", fontWeight = FontWeight.Bold)
-        }
-        Spacer(Modifier.height(8.dp))
         OutlinedButton(onClick = onOpenDashboard, modifier = Modifier.fillMaxWidth()) {
             Text("Ouvrir le dashboard", color = Navy)
-        }
-        Spacer(Modifier.height(8.dp))
-        OutlinedButton(onClick = onLogout, modifier = Modifier.fillMaxWidth()) {
-            Text("Déconnecter cet appareil", color = Muted)
-        }
-        Spacer(Modifier.height(8.dp))
-        OutlinedButton(onClick = onChangeSite, modifier = Modifier.fillMaxWidth()) {
-            Text("Changer de restaurant", color = Muted)
         }
         Spacer(Modifier.height(16.dp))
         Text("Laisse l'app installée : FCM + surveillance 20 s prennent le relais même app fermée.", color = Muted, fontSize = 12.sp)
