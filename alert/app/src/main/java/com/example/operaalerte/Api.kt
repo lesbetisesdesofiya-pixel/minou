@@ -56,6 +56,14 @@ object Api {
             j.getString("token") to j.getString("role")
         }
 
+    /** GET /api/me (rôle + livreur lié). */
+    suspend fun me(token: String): JSONObject =
+        withContext(Dispatchers.IO) {
+            val (code, text) = req("GET", "/me", token)
+            if (code != 200) throw Exception("Session invalide.")
+            JSONObject(text)
+        }
+
     /** GET /api/orders/{id} (détail + articles). */
     suspend fun getOrder(token: String, id: String): JSONObject =
         withContext(Dispatchers.IO) {

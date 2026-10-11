@@ -19,12 +19,7 @@ export default function Login() {
     setBusy(true);
     try {
       const { role } = await login(email.trim(), password.trim());
-      if (role === 'DELIVERY') {
-        await logout();
-        setErr("Compte livreur : cette app est réservée à l'administration.");
-        return;
-      }
-      router.replace('/(admin)/commandes');
+      router.replace(role === 'DELIVERY' ? '/(livreur)/commandes' : '/(admin)/commandes');
     } catch (e: any) {
       setErr(e?.message || 'Identifiants invalides.');
     } finally {

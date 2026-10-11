@@ -256,6 +256,18 @@ class ApiController extends Controller
         $rows = Order::where('id', $id)->update(['status' => $status]);
         if (!$rows) return response()->json(['error' => 'Commande introuvable'], 404);
 
+        // Commande PRÊTE -> alarme push à SON livreur (topic driver_{id}, silencieux si échec)
+        if ($status === 'READY_FOR_PICKUP') {
+            try {
+                $full = Order::with(['items', 'driver'])->find($id);
+                if ($full && $full->assigned_driver_id) {
+                    (new \App\Services\FcmService())->sendReadyNotification($full);
+                }
+            } catch (\Throwable $e) {
+                error_log('FCM Ready Error: ' . $e->getMessage());
+            }
+        }
+
         return response()->json(['success' => true, 'order_id' => $id, 'status' => $status]);
     }
 

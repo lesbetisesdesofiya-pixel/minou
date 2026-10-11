@@ -79,10 +79,20 @@ class WatchService : Service() {
         val token = TokenStore.get(this) ?: return
         val list = Api.listOrders(token, 10)
         val seen = TokenStore.seenIds(this)
+        // Mode livreur : uniquement MES courses PRÊTES. Sinon : nouvelles commandes cuisine.
+        val isLivreur = TokenStore.getRole(this) == "DELIVERY"
+        val myDriver = TokenStore.getDriverId(this)
         for (i in 0 until list.length()) {
             val o = list.optJSONObject(i) ?: continue
             val id = o.opt("id")?.toString() ?: continue
-            if (o.optString("status", "") !in NEW_STATUSES) continue
+            val status = o.optString("status", "")
+            if (isLivreur) {
+                if (myDriver <= 0) return
+                if (o.optInt("assigned_driver_id", 0) != myDriver) continue
+                if (status != "READY_FOR_PICKUP") continue
+            } else {
+                if (status !in NEW_STATUSES) continue
+            }
             if (seen.contains(id) || seen.contains("fcm-$id")) continue
             TokenStore.addSeen(this, id)
             if (!isRecent(o)) continue

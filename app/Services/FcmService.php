@@ -173,4 +173,66 @@ class FcmService
             return ['success' => false, 'error' => $e->getMessage()];
         }
     }
+
+    /**
+     * ALARME livreur : commande PRÊTE pour SON livreur assigné.
+     * - topic = "driver_{delivery_person_id}" (l'app s'y abonne après login livreur)
+     * - data.type = "ready" → l'app affiche l'alerte "course prête"
+     */
+    public function sendReadyNotification(Order $order): array
+    {
+        try {
+            $driverId = $order->assigned_driver_id;
+            if (!$driverId) return ['success' => false, 'error' => 'Aucun livreur assigné'];
+
+            $accessToken = $this->getAccessToken();
+            $orderId     = $order->id;
+
+            $items = $order->items->map(fn($i) => [
+                'name'     => $i->product_name,
+                'quantity' => (int) $i->quantity,
+                'price'    => (float) $i->price,
+                'options'  => $i->options_text,
+            ])->toArray();
+
+            $message = [
+                'message' => [
+                    'topic' => "driver_{$driverId}",
+                    'android' => [
+                        'priority' => 'high',
+                    ],
+                    'data' => [
+                        'type'         => 'ready',
+                        'title'        => "Course prête #{$orderId}",
+                        'body'         => "À récupérer : {$order->neighborhood}",
+                        'order_id'     => (string) $orderId,
+                        'total'        => (string) $order->total_amount,
+                        'name'         => (string) ($order->client_name ?: 'Client'),
+                        'phone'        => (string) ($order->client_phone ?: '-'),
+                        'neighborhood' => (string) ($order->neighborhood ?: ''),
+                        'driver_amount'=> (string) ($order->driver_amount ?? 0),
+                        'items'        => json_encode($items),
+                        'click_action' => 'FLUTTER_NOTIFICATION_CLICK',
+                    ],
+                ],
+            ];
+
+            $ch = curl_init();
+            curl_setopt($ch, CURLOPT_URL, $this->fcmUrl);
+            curl_setopt($ch, CURLOPT_POST, true);
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                'Authorization: Bearer ' . $accessToken,
+                'Content-Type: application/json',
+            ]);
+            curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($message));
+            $response = curl_exec($ch);
+            curl_close($ch);
+
+            return json_decode($response, true) ?? [];
+        } catch (\Exception $e) {
+            error_log("FCM Ready Error: " . $e->getMessage());
+            return ['success' => false, 'error' => $e->getMessage()];
+        }
+    }
 }

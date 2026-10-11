@@ -15,6 +15,7 @@ export default function Index() {
     );
   }
   if (!site) return <Redirect href="/site-select" />;
-  if (!token || role === 'DELIVERY') return <Redirect href="/login" />;
+  if (!token) return <Redirect href="/login" />;
+  if (role === 'DELIVERY') return <Redirect href="/(livreur)/commandes" />;
   return <Redirect href="/(admin)/commandes" />;
 }

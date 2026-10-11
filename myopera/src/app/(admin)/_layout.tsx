@@ -14,7 +14,7 @@ export default function AdminLayout() {
     );
   }
   if (!token) return <Redirect href="/login" />;
-  if (role === 'DELIVERY') return <Redirect href="/login" />;
+  if (role === 'DELIVERY') return <Redirect href="/(livreur)/commandes" />;
 
   return (
     <Tabs

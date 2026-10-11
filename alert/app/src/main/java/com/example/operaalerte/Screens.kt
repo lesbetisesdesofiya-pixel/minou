@@ -52,6 +52,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import org.json.JSONObject
 
 private val Navy = Color(0xFF0A192F)
 private val Orange = Color(0xFFF97316)
@@ -281,5 +282,88 @@ private fun InfoRow(icon: androidx.compose.ui.graphics.vector.ImageVector, text:
         Icon(icon, contentDescription = null, tint = Muted)
         Spacer(Modifier.padding(2.dp))
         Text(text, color = Muted)
+    }
+}
+
+/** Écran livreur : MES courses prêtes + marquer livrée. */
+@Composable
+fun LivreurScreen(onOpenDashboard: () -> Unit) {
+    val ctx = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var orders by remember { mutableStateOf(listOf<JSONObject>()) }
+    var err by remember { mutableStateOf("") }
+    var busy by remember { mutableStateOf(false) }
+    var doneToday by remember { mutableStateOf(0) }
+
+    fun load() {
+        scope.launch {
+            try {
+                val token = TokenStore.get(ctx) ?: return@launch
+                val driver = TokenStore.getDriverId(ctx)
+                val arr = Api.listOrders(token, 50)
+                val mine = (0 until arr.length())
+                    .mapNotNull { arr.optJSONObject(it) }
+                    .filter { it.optInt("assigned_driver_id", 0) == driver }
+                orders = mine.filter { it.optString("status") == "READY_FOR_PICKUP" }
+                doneToday = mine.count { it.optString("status") == "delivered" }
+                err = ""
+            } catch (e: Exception) {
+                err = e.message ?: "Chargement impossible."
+            }
+        }
+    }
+
+    LaunchedEffect(Unit) { load() }
+
+    Column(
+        Modifier.fillMaxSize().background(PageBg).padding(16.dp)
+            .verticalScroll(rememberScrollState()),
+    ) {
+        Text("Mes courses", fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, color = Navy)
+        Text("$doneToday livrée(s) • ${orders.size} prête(s)", color = Muted)
+        Spacer(Modifier.height(10.dp))
+        if (err.isNotEmpty()) Text(err, color = Color(0xFFB91C1C))
+        if (orders.isEmpty()) {
+            Box(Modifier.fillMaxWidth().background(Color.White, RoundedCornerShape(16.dp)).padding(16.dp)) {
+                Text("Aucune course prête. Reste en ligne.", color = Muted)
+            }
+        }
+        orders.forEach { o ->
+            val id = o.opt("id")?.toString() ?: "?"
+            Box(Modifier.fillMaxWidth().background(Color.White, RoundedCornerShape(16.dp)).padding(16.dp)) {
+                Column {
+                    Text("#OP-$id — ${o.optString("neighborhood", "")}",
+                        fontWeight = FontWeight.ExtraBold, color = Navy)
+                    Text("${o.optString("client_name", "")} • ${o.optString("client_phone", "")}", color = Muted)
+                    Text("Gain : ${o.optDouble("driver_amount", 0.0).toLong()} FCFA",
+                        fontWeight = FontWeight.Bold, color = Navy)
+                    Spacer(Modifier.height(8.dp))
+                    Button(
+                        onClick = {
+                            busy = true
+                            scope.launch {
+                                try {
+                                    val token = TokenStore.get(ctx) ?: return@launch
+                                    Api.setStatus(token, id, "delivered")
+                                } catch (_: Exception) {}
+                                busy = false
+                                load()
+                            }
+                        },
+                        enabled = !busy,
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(containerColor = OrangeDeep),
+                    ) { Text("Marquer livrée") }
+                }
+            }
+            Spacer(Modifier.height(10.dp))
+        }
+        OutlinedButton(onClick = { load() }, modifier = Modifier.fillMaxWidth()) {
+            Text("Actualiser", color = Navy)
+        }
+        Spacer(Modifier.height(8.dp))
+        OutlinedButton(onClick = onOpenDashboard, modifier = Modifier.fillMaxWidth()) {
+            Text("Ouvrir mes rapports", color = Navy)
+        }
     }
 }

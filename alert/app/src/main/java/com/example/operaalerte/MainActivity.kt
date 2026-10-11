@@ -20,6 +20,7 @@ sealed interface Nav {
     data object SiteSelect : Nav
     data object Setup : Nav
     data object Main : Nav
+    data object Livreur : Nav
     data class Alert(val alert: OrderAlert, val token: String) : Nav
 }
 
@@ -41,7 +42,6 @@ class MainActivity : ComponentActivity() {
             }
         })
         handleIntent(intent)
-        try { FirebaseMessaging.getInstance().subscribeToTopic("admin_alerts") } catch (_: Exception) {}
         setContent {
             OperaAlerteTheme {
                 RequestNotifPermission()
@@ -57,12 +57,15 @@ class MainActivity : ComponentActivity() {
                     is Nav.Main -> MainScreen(
                         onOpenDashboard = { openDeeplink("myopera://commandes") },
                     )
+                    is Nav.Livreur -> LivreurScreen(
+                        onOpenDashboard = { openDeeplink("myopera://livreur/commandes") },
+                    )
                     is Nav.Alert -> AlertScreen(
                         alert = n.alert,
                         onAccept = { acceptOrder(n) },
                         onRefuse = {
                             Alerts.dismiss(this, n.alert.id)
-                            nav = Nav.Main
+                            nav = homeNav()
                         },
                     )
                 }
@@ -75,6 +78,9 @@ class MainActivity : ComponentActivity() {
         setIntent(intent)
         handleIntent(intent)
     }
+
+    private fun homeNav(): Nav =
+        if (TokenStore.getRole(this) == "DELIVERY") Nav.Livreur else Nav.Main
 
     private fun handleIntent(intent: Intent?) {
         // Ordre strict : site (base API) AVANT token, sinon appels vers le mauvais site.
@@ -89,34 +95,65 @@ class MainActivity : ComponentActivity() {
             nav = Nav.Setup
             return
         }
-        WatchService.start(this)
-        if (intent?.action == ACTION_ALERT) {
-            // Détail complet direct sur la page d'alerte (source fiable : l'API),
-            // avec repli sur les données du push si le réseau flanche.
-            val id = intent.getStringExtra("order_id") ?: return
-            nav = Nav.Loading
-            lifecycleScope.launch {
+        // Résout rôle + livreur (abonnements push par rôle), puis route.
+        nav = Nav.Loading
+        lifecycleScope.launch {
+            try {
+                val me = Api.me(token)
+                val role = me.optString("role", "")
+                TokenStore.saveRole(this@MainActivity, role)
+                val driverId = me.optInt("delivery_person_id", 0)
+                TokenStore.saveDriverId(this@MainActivity, driverId)
                 try {
-                    val detail = Api.getOrder(token, id)
-                    nav = Nav.Alert(OrderAlert.fromOrderJson(detail), token)
-                } catch (_: Exception) {
-                    nav = Nav.Alert(OrderAlert.fromIntent(intent), token)
-                }
+                    val fm = FirebaseMessaging.getInstance()
+                    if (role == "DELIVERY" && driverId > 0) {
+                        // Livreurs : uniquement SES courses prêtes (plus d'alarmes cuisine).
+                        try { fm.unsubscribeFromTopic("admin_alerts") } catch (_: Exception) {}
+                        fm.subscribeToTopic("driver_$driverId")
+                    } else {
+                        fm.subscribeToTopic("admin_alerts")
+                    }
+                } catch (_: Exception) {}
+            } catch (_: Exception) {
+                // réseau flanche : on garde le rôle stocké
             }
-        } else if (nav is Nav.Loading || nav is Nav.Setup) {
-            nav = Nav.Main
+            WatchService.start(this@MainActivity)
+            if (intent?.action == ACTION_ALERT) {
+                // Détail complet direct sur la page d'alerte (source fiable : l'API),
+                // avec repli sur les données du push si le réseau flanche.
+                val id = intent.getStringExtra("order_id")
+                if (id == null) {
+                    nav = homeNav()
+                } else {
+                    try {
+                        val detail = Api.getOrder(token, id)
+                        nav = Nav.Alert(OrderAlert.fromOrderJson(detail), token)
+                    } catch (_: Exception) {
+                        nav = Nav.Alert(OrderAlert.fromIntent(intent), token)
+                    }
+                }
+            } else if (nav is Nav.Loading || nav is Nav.Setup) {
+                nav = homeNav()
+            }
         }
     }
 
-    /** Accepter : passe la commande en cuisine (API) puis ouvre le détail via deeplink. */
+    /**
+     * Accepter : admin -> passe en cuisine + ouvre le détail ;
+     * livreur -> ouvre simplement ses courses (pas de changement de statut).
+     */
     private fun acceptOrder(n: Nav.Alert) {
         lifecycleScope.launch {
-            try {
-                Api.setStatus(n.token, n.alert.id, "PREPARING")
-            } catch (_: Exception) {}
+            val isLivreur = TokenStore.getRole(this@MainActivity) == "DELIVERY"
+            if (!isLivreur) {
+                try {
+                    Api.setStatus(n.token, n.alert.id, "PREPARING")
+                } catch (_: Exception) {}
+            }
             Alerts.dismiss(this@MainActivity, n.alert.id)
-            openDeeplink("myopera://commande/${n.alert.id}")
-            nav = Nav.Main
+            if (isLivreur) openDeeplink("myopera://livreur/commandes")
+            else openDeeplink("myopera://commande/${n.alert.id}")
+            nav = homeNav()
         }
     }
 

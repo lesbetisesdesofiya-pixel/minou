@@ -8,6 +8,8 @@ import androidx.security.crypto.MasterKey
 object TokenStore {
     private const val FILE = "opera_alerte_sec"
     private const val KEY_TOKEN = "opera_token"
+    private const val KEY_ROLE = "opera_role"
+    private const val KEY_DRIVER = "opera_driver_id"
 
     private fun prefs(ctx: Context) = EncryptedSharedPreferences.create(
         ctx, FILE,
@@ -24,7 +26,21 @@ object TokenStore {
     }
 
     fun clear(ctx: Context) {
-        prefs(ctx).edit().remove(KEY_TOKEN).apply()
+        prefs(ctx).edit().remove(KEY_TOKEN).remove(KEY_ROLE).remove(KEY_DRIVER).apply()
+    }
+
+    fun getRole(ctx: Context): String =
+        try { prefs(ctx).getString(KEY_ROLE, "") ?: "" } catch (_: Exception) { "" }
+
+    fun saveRole(ctx: Context, role: String) {
+        try { prefs(ctx).edit().putString(KEY_ROLE, role).apply() } catch (_: Exception) {}
+    }
+
+    fun getDriverId(ctx: Context): Int =
+        try { prefs(ctx).getInt(KEY_DRIVER, 0) } catch (_: Exception) { 0 }
+
+    fun saveDriverId(ctx: Context, id: Int) {
+        try { prefs(ctx).edit().putInt(KEY_DRIVER, id).apply() } catch (_: Exception) {}
     }
 
     /** Commandes déjà vues (polling secours anti-doublon d'alarme). */

@@ -7,10 +7,11 @@ export default function RootLayout() {
     <SiteProvider>
       <AuthProvider>
         <Stack screenOptions={{ headerShown: false }}>
-          <Stack.Screen name="index" />
-          <Stack.Screen name="site-select" />
-          <Stack.Screen name="login" />
-          <Stack.Screen name="(admin)" />
+        <Stack.Screen name="index" />
+        <Stack.Screen name="site-select" />
+        <Stack.Screen name="login" />
+        <Stack.Screen name="(admin)" />
+        <Stack.Screen name="(livreur)" />
         </Stack>
       </AuthProvider>
     </SiteProvider>
