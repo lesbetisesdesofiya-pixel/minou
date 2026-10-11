@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Config Firebase SANS plugin google-services (marqueur irresoluble ici).
+     Projet : mobile-alert-app-f9a2b7 — Sender ID 755017140652.
+     ⚠️ google_app_id ci-dessous = PLACEHOLDER : enregistrer l'app Android
+     "com.example.operaalerte" dans la console Firebase du projet puis
+     remplacer par le mobilesdk_app_id fourni (format 1:755017140652:android:XXXX).
+     Sans ça, l'inscription FCM au topic admin_alerts échouera (le polling
+     20 s prendra le relais automatiquement). -->
+<resources>
+    <string name="google_app_id" translatable="false">1:755017140652:android:OPERAAALERTE_A_COMPLETER</string>
+    <string name="gcm_defaultSenderId" translatable="false">755017140652</string>
+    <string name="google_api_key" translatable="false">AIzaSyAjRp28qwRDR7jwhkaCZGBDNMcL3eR4knc</string>
+    <string name="project_id" translatable="false">mobile-alert-app-f9a2b7</string>
+    <string name="google_storage_bucket" translatable="false">mobile-alert-app-f9a2b7.firebasestorage.app</string>
+</resources>
